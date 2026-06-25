@@ -1,0 +1,46 @@
+# Deps
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Build
+dist/
+build/
+*.tsbuildinfo
+
+# Env (NUNCA commitar)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Data persistente local
+data/
+postgres-data/
+volumes/
+
+# Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Cache
+.cache/
+.turbo/
+.parcel-cache/
+
+# Backups
+*.bak
+*.backup
+*.zip
+
+# Placeholder do init
+.gitkeep
