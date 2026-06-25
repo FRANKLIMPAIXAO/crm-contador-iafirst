@@ -2,6 +2,8 @@
 // Bootstrap Express
 import express from 'express';
 import cors from 'cors';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
 import { errorHandler } from './middleware/error.js';
 import { authRouter } from './routes/auth.js';
@@ -10,6 +12,7 @@ import { messagesRouter } from './routes/messages.js';
 import { webhookRouter } from './routes/webhook.js';
 import { pool } from './db/connection.js';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 // Middlewares base
@@ -43,15 +46,22 @@ app.get('/ready', async (_req, res) => {
   }
 });
 
-// Rotas
+// Rotas API (montadas ANTES do static)
 app.use('/api/auth', authRouter);
 app.use('/api/leads', leadsRouter);
 app.use('/api/messages', messagesRouter);
 app.use('/webhook', webhookRouter);
 
-// 404
-app.use((_req, res) => {
-  res.status(404).json({ erro: 'rota não encontrada' });
+// Arquivos estáticos (painel HTML)
+// __dirname em runtime é dist/ — public/ fica 2 níveis acima
+const publicDir = path.resolve(__dirname, '..', 'public');
+app.use(express.static(publicDir));
+
+// SPA fallback — qualquer rota não-API retorna index.html
+app.get(/^(?!\/api\/|\/health|\/ready|\/webhook).*/, (_req, res) => {
+  res.sendFile(path.join(publicDir, 'index.html'), (err) => {
+    if (err) res.status(404).json({ erro: 'rota não encontrada' });
+  });
 });
 
 // Error handler global (DEVE ser o último)
