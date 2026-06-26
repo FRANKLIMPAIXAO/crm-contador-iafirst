@@ -23,6 +23,10 @@ const schema = z.object({
 
   SEXTA_API_TOKEN: z.string().optional(),
 
+  // Webhook da SEXTA — quando lead quente entra, CRM avisa
+  SEXTA_WEBHOOK_URL: z.string().url().optional(),
+  SEXTA_WEBHOOK_SECRET: z.string().min(16).optional(),
+
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
 });
 

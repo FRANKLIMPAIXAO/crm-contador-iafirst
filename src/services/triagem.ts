@@ -5,6 +5,7 @@
 import { getClient, isConfigured } from './anthropic.js';
 import { config } from '../config.js';
 import { query, queryOne } from '../db/connection.js';
+import { notificar, urlCrmLead } from './sexta-notify.js';
 
 export interface TriagemResultado {
   produto_interesse: 'familia' | 'iafirst' | 'pacservice' | 'contachat' | 'indefinido';
@@ -134,6 +135,45 @@ export async function triarLead(leadId: string, orgId: string, textoNovo: string
      VALUES ($1, $2, 'triagem_ia', $3)`,
     [orgId, leadId, JSON.stringify(resultado)],
   );
+
+  // ===== Notifica SEXTA se for lead QUENTE =====
+  if (resultado.qualif === 'quente') {
+    try {
+      const lead = await queryOne<{
+        nome: string | null; wa_jid: string; stage: string;
+      }>(`SELECT nome, wa_jid, stage FROM leads WHERE id = $1`, [leadId]);
+      if (lead) {
+        // Se já existia conversa (>1 msg), é "lead quente respondeu". Senão "lead novo quente".
+        const count = await queryOne<{ c: string }>(
+          `SELECT count(*)::text as c FROM messages WHERE lead_id = $1`,
+          [leadId],
+        );
+        const ehNovo = Number(count?.c ?? 0) <= 1;
+        await notificar({
+          tipo: ehNovo ? 'lead_novo_quente' : 'lead_quente_respondeu',
+          lead: {
+            id: leadId,
+            nome: lead.nome,
+            wa_jid: lead.wa_jid,
+            produto_interesse: resultado.produto_interesse,
+            qualif: resultado.qualif,
+            score: resultado.score,
+            stage: lead.stage,
+          },
+          mensagem_lead: textoNovo,
+          triagem: {
+            intencao: resultado.intencao,
+            resumo: resultado.resumo,
+            sugestao_resposta: resultado.sugestao_resposta,
+          },
+          url_crm: urlCrmLead(leadId),
+        });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('[triagem] notificar SEXTA falhou (não-crítico):', msg);
+    }
+  }
 
   return resultado;
 }
