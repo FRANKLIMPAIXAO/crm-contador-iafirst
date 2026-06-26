@@ -2,6 +2,7 @@
 // Bootstrap Express
 import express from 'express';
 import cors from 'cors';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
@@ -16,6 +17,27 @@ import { hashSenha } from './auth/hash.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+
+// Resolve publicDir tentando múltiplos paths (robusto pra dev e prod)
+function resolverPublicDir(): string {
+  const candidatos = [
+    path.resolve(__dirname, '..', 'public'),       // dist/server.js → /app/public
+    path.resolve(process.cwd(), 'public'),         // cwd-based
+    path.resolve(__dirname, 'public'),             // ao lado do server.js
+    '/app/public',                                 // hardcoded prod
+  ];
+  for (const dir of candidatos) {
+    if (fs.existsSync(path.join(dir, 'index.html'))) {
+      console.log(`[static] publicDir resolvido: ${dir}`);
+      return dir;
+    }
+  }
+  console.warn(`[static] ⚠️ index.html NÃO encontrado em nenhum candidato:`);
+  candidatos.forEach((c) => console.warn(`  - ${c} (existe? ${fs.existsSync(c)})`));
+  // Retorna o primeiro como fallback (pra não crashar — vai cair no 404)
+  return candidatos[0]!;
+}
+const publicDir = resolverPublicDir();
 
 app.use(
   cors({
@@ -51,7 +73,6 @@ app.use('/api/messages', messagesRouter);
 app.use('/api/dev', devRouter);
 app.use('/webhook', webhookRouter);
 
-const publicDir = path.resolve(__dirname, '..', 'public');
 app.use(express.static(publicDir));
 
 app.get(/^(?!\/api\/|\/health|\/ready|\/webhook).*/, (_req, res) => {
