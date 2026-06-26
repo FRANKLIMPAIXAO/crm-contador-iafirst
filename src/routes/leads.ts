@@ -8,12 +8,43 @@ import { query, queryOne } from '../db/connection.js';
 export const leadsRouter: Router = Router();
 leadsRouter.use(requerAuth);
 
+// POST /api/leads — criação manual (sem WhatsApp)
+const createSchema = z.object({
+  nome: z.string().min(1),
+  wa_jid: z.string().min(5).optional(),
+  produto_interesse: z.enum(['familia', 'iafirst', 'pacservice', 'contachat', 'indefinido']).default('indefinido'),
+  stage: z.enum(['novo', 'qualificado', 'proposta', 'negociacao', 'fechado', 'perdido']).default('novo'),
+  qualif: z.enum(['frio', 'morno', 'quente']).default('frio'),
+  valor: z.number().nonnegative().default(0),
+  origem: z.string().optional(),
+  cnpj: z.string().optional(),
+  tags: z.array(z.string()).default([]),
+});
+
+leadsRouter.post('/', async (req, res, next) => {
+  try {
+    const orgId = getOrgId(req);
+    const input = createSchema.parse(req.body);
+    const waJid = input.wa_jid || `manual_${Date.now()}@local`;
+    const lead = await queryOne(
+      `INSERT INTO leads (org_id, wa_jid, nome, produto_interesse, stage, qualif, valor, origem, cnpj, tags)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+      [orgId, waJid, input.nome, input.produto_interesse, input.stage, input.qualif, input.valor, input.origem || null, input.cnpj || null, input.tags],
+    );
+    res.status(201).json({ lead });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/leads — lista todos da org
 leadsRouter.get('/', async (req, res, next) => {
   try {
     const orgId = getOrgId(req);
     const rows = await query(
       `SELECT id, wa_jid, nome, produto_interesse, stage, qualif, score, valor,
-              tags, last_message_at, created_at
+              tags, last_message_at, created_at, cnpj, origem
        FROM leads
        WHERE org_id = $1
        ORDER BY last_message_at DESC NULLS LAST, created_at DESC
