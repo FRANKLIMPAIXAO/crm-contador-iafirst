@@ -5,18 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CRM Contador IA First</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    .stage-card { transition: all 0.15s; }
+    .stage-card { transition: all 0.15s; cursor: grab; }
     .stage-card:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,.5); border-color: #84cc16; }
+    .stage-card:active { cursor: grabbing; }
+    .sortable-ghost { opacity: 0.4; background: #18181b !important; border: 2px dashed #84cc16 !important; }
+    .sortable-drag { opacity: 0.9; transform: rotate(2deg); }
+    .sortable-chosen { box-shadow: 0 12px 24px rgba(132,204,22,.3) !important; }
     .modal-overlay { backdrop-filter: blur(4px); }
     .msg-in { background: #18181b; border: 1px solid #27272a; align-self: flex-start; max-width: 75%; }
     .msg-out { background: #1a2e05; border: 1px solid #365314; align-self: flex-end; max-width: 75%; }
     .scroll-thin::-webkit-scrollbar { width: 6px; height: 6px; }
     .scroll-thin::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+    .inline-edit { background: transparent; border: 1px solid transparent; padding: 4px 8px; border-radius: 4px; transition: all .1s; color: #e4e4e7; }
+    .inline-edit:hover, .inline-edit:focus { border-color: #84cc16; background: #18181b; outline: none; }
   </style>
 </head>
 <body class="bg-zinc-950 text-zinc-100 min-h-screen">
+
   <div id="screen-login" class="min-h-screen flex items-center justify-center px-4">
     <div class="w-full max-w-md">
       <div class="text-center mb-8">
@@ -35,70 +43,165 @@
         <button type="submit" id="btn-login" class="w-full bg-lime-400 hover:bg-lime-300 text-zinc-950 font-semibold py-3 rounded-lg transition">ENTRAR</button>
         <div id="login-erro" class="text-red-400 text-sm hidden"></div>
       </form>
-      <div class="mt-6 text-center text-xs text-zinc-500">v0.2.0 • Fase 1 — webhook + triagem IA</div>
+      <div class="mt-6 text-center text-xs text-zinc-500">v0.3.0 • Fase 2 — DnD + busca + edição inline</div>
     </div>
   </div>
+
   <div id="screen-dashboard" class="hidden min-h-screen flex flex-col">
-    <header class="border-b border-zinc-800 px-6 py-3 flex items-center justify-between bg-zinc-900">
+    <header class="border-b border-zinc-800 px-6 py-3 flex items-center justify-between bg-zinc-900 flex-shrink-0">
       <div class="flex items-center gap-4">
         <h1 class="text-lime-400 font-bold text-xl">CRM</h1>
-        <span class="text-zinc-500 text-xs uppercase tracking-widest">Contador IA First</span>
+        <span class="text-zinc-500 text-xs uppercase tracking-widest hidden md:inline">Contador IA First</span>
+      </div>
+      <div class="flex-1 max-w-md mx-4">
+        <input id="busca" type="search" placeholder="🔍 Buscar por nome, telefone, CNPJ, produto..." class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2 text-sm focus:border-lime-400 focus:outline-none" />
       </div>
       <div class="flex items-center gap-3">
-        <button id="btn-simular" class="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 text-sm px-3 py-1.5 rounded transition">🧪 Simular lead</button>
-        <div class="text-right text-sm">
+        <button id="btn-novo-lead" class="bg-lime-400 hover:bg-lime-300 text-zinc-950 text-sm font-semibold px-3 py-1.5 rounded transition">+ Novo lead</button>
+        <button id="btn-simular" class="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 text-sm px-3 py-1.5 rounded transition">🧪 Simular</button>
+        <div class="text-right text-sm hidden md:block">
           <div id="header-nome" class="text-zinc-100 font-medium"></div>
           <div id="header-org" class="text-zinc-500 text-xs"></div>
         </div>
         <button id="btn-logout" class="text-zinc-400 hover:text-red-400 text-sm border border-zinc-800 hover:border-red-400 px-3 py-1 rounded transition">SAIR</button>
       </div>
     </header>
-    <div class="grid grid-cols-2 md:grid-cols-6 gap-3 p-6">
-      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Total leads</div><div class="text-2xl font-bold text-zinc-100 mt-1" id="metric-total">0</div></div>
-      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Novos</div><div class="text-2xl font-bold text-blue-400 mt-1" id="metric-novo">0</div></div>
-      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Qualificados</div><div class="text-2xl font-bold text-cyan-400 mt-1" id="metric-qualificado">0</div></div>
-      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Proposta</div><div class="text-2xl font-bold text-yellow-400 mt-1" id="metric-proposta">0</div></div>
-      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Fechados</div><div class="text-2xl font-bold text-lime-400 mt-1" id="metric-fechado">0</div></div>
-      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Quentes 🔥</div><div class="text-2xl font-bold text-orange-400 mt-1" id="metric-quente">0</div></div>
-    </div>
-    <div class="flex-1 px-6 pb-6 overflow-x-auto">
-      <div class="flex gap-4 min-h-[500px]">
-        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3"><h3 class="text-xs uppercase tracking-widest text-blue-400 font-semibold mb-3 px-2">⚡ Novo <span id="count-novo" class="text-zinc-500 ml-1">0</span></h3><div id="col-novo" class="space-y-2"></div></div>
-        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3"><h3 class="text-xs uppercase tracking-widest text-cyan-400 font-semibold mb-3 px-2">🎯 Qualificado <span id="count-qualificado" class="text-zinc-500 ml-1">0</span></h3><div id="col-qualificado" class="space-y-2"></div></div>
-        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3"><h3 class="text-xs uppercase tracking-widest text-yellow-400 font-semibold mb-3 px-2">📋 Proposta <span id="count-proposta" class="text-zinc-500 ml-1">0</span></h3><div id="col-proposta" class="space-y-2"></div></div>
-        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3"><h3 class="text-xs uppercase tracking-widest text-orange-400 font-semibold mb-3 px-2">💬 Negociação <span id="count-negociacao" class="text-zinc-500 ml-1">0</span></h3><div id="col-negociacao" class="space-y-2"></div></div>
-        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3"><h3 class="text-xs uppercase tracking-widest text-lime-400 font-semibold mb-3 px-2">✅ Fechado <span id="count-fechado" class="text-zinc-500 ml-1">0</span></h3><div id="col-fechado" class="space-y-2"></div></div>
+
+    <div class="px-6 pt-4">
+      <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Total leads</div><div class="text-2xl font-bold text-zinc-100 mt-1" id="metric-total">0</div></div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Novos</div><div class="text-2xl font-bold text-blue-400 mt-1" id="metric-novo">0</div></div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Qualificados</div><div class="text-2xl font-bold text-cyan-400 mt-1" id="metric-qualificado">0</div></div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Proposta</div><div class="text-2xl font-bold text-yellow-400 mt-1" id="metric-proposta">0</div></div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Fechados</div><div class="text-2xl font-bold text-lime-400 mt-1" id="metric-fechado">0</div></div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Quentes 🔥</div><div class="text-2xl font-bold text-orange-400 mt-1" id="metric-quente">0</div></div>
       </div>
-      <div id="estado-vazio" class="text-center py-16"><div class="text-6xl mb-4">📫</div><h2 class="text-xl text-zinc-300 mb-2">Nenhum lead ainda</h2><p class="text-zinc-500 text-sm max-w-md mx-auto">Use <strong class="text-lime-400">🧪 Simular lead</strong> pra testar o fluxo IA agora.</p></div>
+      <div class="flex gap-2 mt-4 flex-wrap">
+        <button class="filtro-chip bg-lime-400 text-zinc-950 text-xs font-semibold px-3 py-1 rounded-full" data-filtro="todos">TODOS</button>
+        <button class="filtro-chip bg-zinc-800 text-zinc-400 text-xs px-3 py-1 rounded-full hover:bg-zinc-700" data-filtro="quente">🔥 Quentes</button>
+        <button class="filtro-chip bg-zinc-800 text-zinc-400 text-xs px-3 py-1 rounded-full hover:bg-zinc-700" data-filtro="morno">🌤️ Mornos</button>
+        <button class="filtro-chip bg-zinc-800 text-zinc-400 text-xs px-3 py-1 rounded-full hover:bg-zinc-700" data-filtro="frio">❄️ Frios</button>
+        <button class="filtro-chip bg-zinc-800 text-zinc-400 text-xs px-3 py-1 rounded-full hover:bg-zinc-700" data-filtro="familia">Família TributárIA</button>
+        <button class="filtro-chip bg-zinc-800 text-zinc-400 text-xs px-3 py-1 rounded-full hover:bg-zinc-700" data-filtro="iafirst">Contador IA First</button>
+        <button class="filtro-chip bg-zinc-800 text-zinc-400 text-xs px-3 py-1 rounded-full hover:bg-zinc-700" data-filtro="pacservice">PACSERVICE</button>
+        <button class="filtro-chip bg-zinc-800 text-zinc-400 text-xs px-3 py-1 rounded-full hover:bg-zinc-700" data-filtro="contachat">ContaChat</button>
+      </div>
     </div>
-    <footer class="border-t border-zinc-800 px-6 py-2 text-xs text-zinc-500 flex justify-between bg-zinc-900"><div><span class="text-lime-400">●</span> API online <span class="ml-3">⏱️ <span id="footer-time"></span></span></div><div>v0.2.0 • Fase 1</div></footer>
+
+    <div class="flex-1 px-6 py-4 overflow-x-auto">
+      <div class="flex gap-4 min-h-[500px]">
+        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3 flex flex-col"><h3 class="text-xs uppercase tracking-widest text-blue-400 font-semibold mb-3 px-2">⚡ Novo <span id="count-novo" class="text-zinc-500 ml-1">0</span></h3><div id="col-novo" data-stage="novo" class="flex-1 space-y-2 min-h-[100px]"></div></div>
+        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3 flex flex-col"><h3 class="text-xs uppercase tracking-widest text-cyan-400 font-semibold mb-3 px-2">🎯 Qualificado <span id="count-qualificado" class="text-zinc-500 ml-1">0</span></h3><div id="col-qualificado" data-stage="qualificado" class="flex-1 space-y-2 min-h-[100px]"></div></div>
+        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3 flex flex-col"><h3 class="text-xs uppercase tracking-widest text-yellow-400 font-semibold mb-3 px-2">📋 Proposta <span id="count-proposta" class="text-zinc-500 ml-1">0</span></h3><div id="col-proposta" data-stage="proposta" class="flex-1 space-y-2 min-h-[100px]"></div></div>
+        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3 flex flex-col"><h3 class="text-xs uppercase tracking-widest text-orange-400 font-semibold mb-3 px-2">💬 Negociação <span id="count-negociacao" class="text-zinc-500 ml-1">0</span></h3><div id="col-negociacao" data-stage="negociacao" class="flex-1 space-y-2 min-h-[100px]"></div></div>
+        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3 flex flex-col"><h3 class="text-xs uppercase tracking-widest text-lime-400 font-semibold mb-3 px-2">✅ Fechado <span id="count-fechado" class="text-zinc-500 ml-1">0</span></h3><div id="col-fechado" data-stage="fechado" class="flex-1 space-y-2 min-h-[100px]"></div></div>
+        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3 flex flex-col"><h3 class="text-xs uppercase tracking-widest text-red-400 font-semibold mb-3 px-2">❌ Perdido <span id="count-perdido" class="text-zinc-500 ml-1">0</span></h3><div id="col-perdido" data-stage="perdido" class="flex-1 space-y-2 min-h-[100px]"></div></div>
+      </div>
+      <div id="estado-vazio" class="text-center py-16 hidden">
+        <div class="text-6xl mb-4">📭</div>
+        <h2 class="text-xl text-zinc-300 mb-2">Nenhum lead aqui</h2>
+        <p class="text-zinc-500 text-sm max-w-md mx-auto">Use <strong class="text-lime-400">+ Novo lead</strong> ou <strong class="text-lime-400">🧪 Simular</strong>.</p>
+      </div>
+    </div>
+
+    <footer class="border-t border-zinc-800 px-6 py-2 text-xs text-zinc-500 flex justify-between bg-zinc-900 flex-shrink-0">
+      <div><span class="text-lime-400">●</span> API online <span class="ml-3">⏱️ <span id="footer-time"></span></span> <span class="ml-3">💡 Arraste cards entre colunas</span></div>
+      <div>v0.3.0 • Fase 2</div>
+    </footer>
   </div>
-  <div id="modal-simular" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4 modal-overlay bg-black/60">
+
+  <div id="modal-novo" class="hidden fixed inset-0 z-50 items-center justify-center px-4 modal-overlay bg-black/60">
     <div class="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-lg">
-      <div class="flex justify-between items-start mb-4"><div><h2 class="text-lg font-semibold text-lime-400">🧪 Simular mensagem recebida</h2><p class="text-xs text-zinc-500 mt-1">Pra testar fluxo IA sem WhatsApp conectado</p></div><button onclick="hide('modal-simular')" class="text-zinc-500 hover:text-zinc-200 text-2xl leading-none">×</button></div>
-      <form id="form-simular" class="space-y-3">
-        <div><label class="text-xs uppercase tracking-wider text-zinc-400 mb-1 block">Número WhatsApp (JID)</label><input id="sim-jid" required value="5562999999999@s.whatsapp.net" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" /></div>
-        <div><label class="text-xs uppercase tracking-wider text-zinc-400 mb-1 block">Nome do lead</label><input id="sim-nome" value="Juliana Ferraz" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" /></div>
-        <div><label class="text-xs uppercase tracking-wider text-zinc-400 mb-1 block">Mensagem do lead</label><textarea id="sim-corpo" rows="4" required class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm">Ainda dá tempo de entrar na Turma 01 do Contador IA First em agosto? Tenho escritório com 35 clientes, regimes mistos.</textarea></div>
-        <div class="flex gap-2 pt-2"><button type="button" onclick="hide('modal-simular')" class="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-2 rounded-lg text-sm">CANCELAR</button><button type="submit" id="btn-sim-enviar" class="flex-1 bg-lime-400 hover:bg-lime-300 text-zinc-950 font-semibold py-2 rounded-lg text-sm">ENVIAR</button></div>
-        <div id="sim-resultado" class="text-xs text-zinc-400 hidden"></div>
+      <div class="flex justify-between items-start mb-4">
+        <h2 class="text-lg font-semibold text-lime-400">+ Novo lead manual</h2>
+        <button onclick="hide('modal-novo')" class="text-zinc-500 hover:text-zinc-200 text-2xl leading-none">×</button>
+      </div>
+      <form id="form-novo" class="space-y-3">
+        <div>
+          <label class="text-xs uppercase tracking-wider text-zinc-400 mb-1 block">Nome *</label>
+          <input id="novo-nome" required class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs uppercase tracking-wider text-zinc-400 mb-1 block">WhatsApp</label><input id="novo-jid" placeholder="556299..." class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" /></div>
+          <div><label class="text-xs uppercase tracking-wider text-zinc-400 mb-1 block">Origem</label><input id="novo-origem" placeholder="Reels, indicação..." class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" /></div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div><label class="text-xs uppercase tracking-wider text-zinc-400 mb-1 block">Produto</label>
+            <select id="novo-produto" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm">
+              <option value="indefinido">—</option>
+              <option value="familia">Família TributárIA</option>
+              <option value="iafirst">Contador IA First</option>
+              <option value="pacservice">PACSERVICE</option>
+              <option value="contachat">ContaChat</option>
+            </select></div>
+          <div><label class="text-xs uppercase tracking-wider text-zinc-400 mb-1 block">Qualif</label>
+            <select id="novo-qualif" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm">
+              <option value="frio">Frio</option>
+              <option value="morno">Morno</option>
+              <option value="quente">Quente</option>
+            </select></div>
+          <div><label class="text-xs uppercase tracking-wider text-zinc-400 mb-1 block">Valor R$</label><input id="novo-valor" type="number" min="0" step="0.01" value="0" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" /></div>
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="hide('modal-novo')" class="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-2 rounded-lg text-sm">CANCELAR</button>
+          <button type="submit" id="btn-novo-enviar" class="flex-1 bg-lime-400 hover:bg-lime-300 text-zinc-950 font-semibold py-2 rounded-lg text-sm">CRIAR</button>
+        </div>
+        <div id="novo-resultado" class="text-xs hidden"></div>
       </form>
     </div>
   </div>
-  <div id="drawer-lead" class="hidden fixed inset-0 z-40 flex justify-end">
-    <div class="absolute inset-0 bg-black/60 modal-overlay" onclick="hide('drawer-lead')"></div>
-    <div class="relative bg-zinc-900 border-l border-zinc-800 w-full max-w-2xl h-full flex flex-col">
-      <div class="border-b border-zinc-800 px-6 py-4 flex justify-between items-start"><div><h2 id="drawer-nome" class="text-lg font-semibold text-zinc-100"></h2><div id="drawer-jid" class="text-xs text-zinc-500 mt-1"></div><div id="drawer-tags" class="flex gap-2 mt-2 flex-wrap"></div></div><button onclick="hide('drawer-lead')" class="text-zinc-500 hover:text-zinc-200 text-2xl leading-none">×</button></div>
-      <div class="px-6 py-3 border-b border-zinc-800 bg-zinc-950/50"><div id="drawer-triagem" class="text-xs text-zinc-400"></div></div>
-      <div id="drawer-mensagens" class="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-2 scroll-thin"></div>
-      <div class="border-t border-zinc-800 px-6 py-3 text-xs text-zinc-500">Envio de mensagem chega na Fase 3</div>
+
+  <div id="modal-simular" class="hidden fixed inset-0 z-50 items-center justify-center px-4 modal-overlay bg-black/60">
+    <div class="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-lg">
+      <div class="flex justify-between items-start mb-4">
+        <div><h2 class="text-lg font-semibold text-lime-400">🧪 Simular mensagem WhatsApp</h2><p class="text-xs text-zinc-500 mt-1">Testa fluxo IA sem Evolution</p></div>
+        <button onclick="hide('modal-simular')" class="text-zinc-500 hover:text-zinc-200 text-2xl leading-none">×</button>
+      </div>
+      <form id="form-simular" class="space-y-3">
+        <div><label class="text-xs uppercase tracking-wider text-zinc-400 mb-1 block">JID</label><input id="sim-jid" required value="5562999999999@s.whatsapp.net" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="text-xs uppercase tracking-wider text-zinc-400 mb-1 block">Nome</label><input id="sim-nome" value="Juliana Ferraz" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="text-xs uppercase tracking-wider text-zinc-400 mb-1 block">Mensagem</label><textarea id="sim-corpo" rows="4" required class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm">Ainda dá tempo de entrar na Turma 01 do Contador IA First em agosto? Tenho escritório com 35 clientes, regimes mistos.</textarea></div>
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="hide('modal-simular')" class="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-2 rounded-lg text-sm">CANCELAR</button>
+          <button type="submit" id="btn-sim-enviar" class="flex-1 bg-lime-400 hover:bg-lime-300 text-zinc-950 font-semibold py-2 rounded-lg text-sm">ENVIAR</button>
+        </div>
+        <div id="sim-resultado" class="text-xs hidden"></div>
+      </form>
     </div>
   </div>
+
+  <div id="drawer-lead" class="hidden fixed inset-0 z-40 justify-end">
+    <div class="absolute inset-0 bg-black/60 modal-overlay" onclick="hide('drawer-lead')"></div>
+    <div class="relative bg-zinc-900 border-l border-zinc-800 w-full max-w-2xl h-full flex flex-col">
+      <div class="border-b border-zinc-800 px-6 py-4 flex justify-between items-start">
+        <div class="flex-1"><h2 id="drawer-nome" class="text-lg font-semibold text-zinc-100"></h2><div id="drawer-jid" class="text-xs text-zinc-500 mt-1"></div><div id="drawer-tags" class="flex gap-2 mt-2 flex-wrap"></div></div>
+        <button onclick="hide('drawer-lead')" class="text-zinc-500 hover:text-zinc-200 text-2xl leading-none ml-2">×</button>
+      </div>
+      <div class="px-6 py-3 border-b border-zinc-800 bg-zinc-950/50 grid grid-cols-3 gap-2">
+        <div><label class="text-xs text-zinc-500 block mb-1">Stage</label>
+          <select id="drawer-stage" class="inline-edit text-sm w-full">
+            <option value="novo">⚡ Novo</option><option value="qualificado">🎯 Qualificado</option>
+            <option value="proposta">📋 Proposta</option><option value="negociacao">💬 Negociação</option>
+            <option value="fechado">✅ Fechado</option><option value="perdido">❌ Perdido</option>
+          </select></div>
+        <div><label class="text-xs text-zinc-500 block mb-1">Qualif</label>
+          <select id="drawer-qualif" class="inline-edit text-sm w-full">
+            <option value="frio">❄️ Frio</option><option value="morno">🌤️ Morno</option><option value="quente">🔥 Quente</option>
+          </select></div>
+        <div><label class="text-xs text-zinc-500 block mb-1">Valor R$</label>
+          <input id="drawer-valor" type="number" min="0" step="0.01" class="inline-edit text-sm w-full" /></div>
+      </div>
+      <div class="px-6 py-3 border-b border-zinc-800 bg-zinc-950/30"><div id="drawer-triagem" class="text-xs text-zinc-400"></div></div>
+      <div id="drawer-mensagens" class="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-2 scroll-thin"></div>
+      <div class="border-t border-zinc-800 px-6 py-3 text-xs text-zinc-500">💡 Envio WhatsApp chega na Fase 3</div>
+    </div>
+  </div>
+
   <script>
     const API = ''; const tokenKey = 'crm_token'; const userKey = 'crm_user';
     function el(id) { return document.getElementById(id); }
-    function show(id) { el(id).classList.remove('hidden'); el(id).classList.add('flex'); }
-    function hide(id) { el(id).classList.add('hidden'); el(id).classList.remove('flex'); }
+    function show(id) { const e = el(id); e.classList.remove('hidden'); if (id.startsWith('modal-') || id === 'drawer-lead') e.classList.add('flex'); }
+    function hide(id) { const e = el(id); e.classList.add('hidden'); e.classList.remove('flex'); }
     window.show = show; window.hide = hide;
     function getToken() { return localStorage.getItem(tokenKey); }
     function getUser() { const raw = localStorage.getItem(userKey); return raw ? JSON.parse(raw) : null; }
@@ -118,7 +221,8 @@
     }
     function logout() {
       localStorage.removeItem(tokenKey); localStorage.removeItem(userKey);
-      el('screen-dashboard').classList.add('hidden'); el('screen-login').classList.remove('hidden');
+      el('screen-dashboard').classList.add('hidden'); el('screen-dashboard').classList.remove('flex');
+      el('screen-login').classList.remove('hidden');
     }
     async function mostrarDashboard() {
       el('screen-login').classList.add('hidden');
@@ -126,57 +230,101 @@
       const user = getUser();
       if (user) { el('header-nome').textContent = user.nome; el('header-org').textContent = user.papel.toUpperCase(); }
       await carregarLeads();
+      iniciarSortable();
     }
     const PRODUTO_LABEL = { familia: 'Família TributárIA', iafirst: 'Contador IA First', pacservice: 'PACSERVICE', contachat: 'ContaChat', indefinido: '—' };
     const QUALIF_COR = { frio: 'text-blue-400', morno: 'text-yellow-400', quente: 'text-orange-400' };
+    let _todosLeads = []; let _filtroAtivo = 'todos'; let _busca = '';
+    function leadVisivel(lead) {
+      if (_busca) { const q = _busca.toLowerCase(); const hay = [lead.nome, lead.wa_jid, lead.cnpj, PRODUTO_LABEL[lead.produto_interesse]].filter(Boolean).join(' ').toLowerCase(); if (!hay.includes(q)) return false; }
+      if (_filtroAtivo === 'todos') return true;
+      if (['frio','morno','quente'].includes(_filtroAtivo)) return lead.qualif === _filtroAtivo;
+      if (['familia','iafirst','pacservice','contachat'].includes(_filtroAtivo)) return lead.produto_interesse === _filtroAtivo;
+      return true;
+    }
     function cardLead(lead) {
-      return `<div class="stage-card bg-zinc-900 border border-zinc-800 rounded-lg p-3 cursor-pointer" onclick="abrirLead('${lead.id}')"><div class="flex justify-between items-start mb-1"><div class="font-medium text-zinc-100 text-sm truncate flex-1">${escape(lead.nome || lead.wa_jid)}</div><span class="${QUALIF_COR[lead.qualif] || 'text-zinc-500'} text-xs ml-2">●</span></div><div class="text-xs text-zinc-500 truncate">${PRODUTO_LABEL[lead.produto_interesse] || ''}</div><div class="flex justify-between items-center mt-2">${lead.score > 0 ? `<div class="text-xs text-zinc-400">${lead.score}/100</div>` : '<div></div>'}${lead.valor > 0 ? `<div class="text-xs text-lime-400">R$ ${Number(lead.valor).toLocaleString('pt-BR')}</div>` : ''}</div></div>`;
+      return `<div class="stage-card bg-zinc-900 border border-zinc-800 rounded-lg p-3" data-lead-id="${lead.id}" onclick="abrirLead('${lead.id}')">
+        <div class="flex justify-between items-start mb-1"><div class="font-medium text-zinc-100 text-sm truncate flex-1">${escape(lead.nome || lead.wa_jid)}</div><span class="${QUALIF_COR[lead.qualif] || 'text-zinc-500'} text-xs ml-2">●</span></div>
+        <div class="text-xs text-zinc-500 truncate">${PRODUTO_LABEL[lead.produto_interesse] || ''}</div>
+        <div class="flex justify-between items-center mt-2">${lead.score > 0 ? `<div class="text-xs text-zinc-400">${lead.score}/100</div>` : '<div></div>'}${Number(lead.valor) > 0 ? `<div class="text-xs text-lime-400">R$ ${Number(lead.valor).toLocaleString('pt-BR')}</div>` : ''}</div>
+      </div>`;
     }
     function escape(s) { return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
     function fmtTs(ts) { const d = new Date(ts); return d.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }); }
-    async function carregarLeads() {
-      try {
-        const { leads } = await api('/api/leads');
-        const stages = ['novo','qualificado','proposta','negociacao','fechado','perdido'];
-        const por = Object.fromEntries(stages.map(s => [s, []]));
-        for (const l of leads) (por[l.stage] || por.novo).push(l);
-        el('metric-total').textContent = leads.length;
-        el('metric-novo').textContent = por.novo.length;
-        el('metric-qualificado').textContent = por.qualificado.length;
-        el('metric-proposta').textContent = por.proposta.length;
-        el('metric-fechado').textContent = por.fechado.length;
-        el('metric-quente').textContent = leads.filter(l => l.qualif === 'quente').length;
-        for (const s of ['novo','qualificado','proposta','negociacao','fechado']) {
-          el('col-' + s).innerHTML = por[s].map(cardLead).join('');
-          el('count-' + s).textContent = por[s].length;
-        }
-        if (leads.length === 0) el('estado-vazio').classList.remove('hidden'); else el('estado-vazio').classList.add('hidden');
-      } catch (e) { console.error('[carregarLeads]', e.message); }
+    function renderizar() {
+      const visiveis = _todosLeads.filter(leadVisivel);
+      const stages = ['novo','qualificado','proposta','negociacao','fechado','perdido'];
+      const por = Object.fromEntries(stages.map(s => [s, []]));
+      for (const l of visiveis) (por[l.stage] || por.novo).push(l);
+      el('metric-total').textContent = _todosLeads.length;
+      el('metric-novo').textContent = _todosLeads.filter(l => l.stage === 'novo').length;
+      el('metric-qualificado').textContent = _todosLeads.filter(l => l.stage === 'qualificado').length;
+      el('metric-proposta').textContent = _todosLeads.filter(l => l.stage === 'proposta').length;
+      el('metric-fechado').textContent = _todosLeads.filter(l => l.stage === 'fechado').length;
+      el('metric-quente').textContent = _todosLeads.filter(l => l.qualif === 'quente').length;
+      for (const s of stages) { const col = el('col-' + s); if (!col) continue; col.innerHTML = por[s].map(cardLead).join(''); const countEl = el('count-' + s); if (countEl) countEl.textContent = por[s].length; }
+      el('estado-vazio').classList.toggle('hidden', visiveis.length !== 0);
     }
+    async function carregarLeads() {
+      try { const { leads } = await api('/api/leads'); _todosLeads = leads; renderizar(); }
+      catch (e) { console.error('[carregarLeads]', e.message); }
+    }
+    function iniciarSortable() {
+      document.querySelectorAll('[data-stage]').forEach((col) => {
+        if (col._sortable) return;
+        col._sortable = new Sortable(col, {
+          group: 'kanban', animation: 150,
+          ghostClass: 'sortable-ghost', dragClass: 'sortable-drag', chosenClass: 'sortable-chosen',
+          onAdd: async (evt) => {
+            const card = evt.item; const leadId = card.dataset.leadId; const novoStage = evt.to.dataset.stage;
+            try {
+              await api('/api/leads/' + leadId, { method: 'PATCH', body: JSON.stringify({ stage: novoStage }) });
+              const lead = _todosLeads.find(l => l.id === leadId);
+              if (lead) lead.stage = novoStage;
+              renderizar();
+            } catch (e) { alert('Erro ao mover: ' + e.message); carregarLeads(); }
+          },
+        });
+      });
+    }
+    let _drawerLeadId = null;
     async function abrirLead(id) {
       try {
         const { lead, messages, activities } = await api('/api/leads/' + id);
+        _drawerLeadId = id;
         el('drawer-nome').textContent = lead.nome || lead.wa_jid;
         el('drawer-jid').textContent = lead.wa_jid + ' • ' + (PRODUTO_LABEL[lead.produto_interesse] || '');
         const tags = [];
         tags.push(`<span class="bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded text-xs ${QUALIF_COR[lead.qualif]}">${lead.qualif}</span>`);
-        tags.push(`<span class="bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded text-xs">${lead.stage}</span>`);
         if (lead.score) tags.push(`<span class="bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded text-xs">score ${lead.score}</span>`);
         if (lead.cnpj) tags.push(`<span class="bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded text-xs">CNPJ ${lead.cnpj}</span>`);
+        if (lead.origem) tags.push(`<span class="bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded text-xs">📍 ${escape(lead.origem)}</span>`);
         el('drawer-tags').innerHTML = tags.join('');
+        el('drawer-stage').value = lead.stage; el('drawer-qualif').value = lead.qualif; el('drawer-valor').value = Number(lead.valor) || 0;
         const triagem = activities.find(a => a.tipo === 'triagem_ia');
         if (triagem && triagem.conteudo) {
           const c = triagem.conteudo;
           el('drawer-triagem').innerHTML = `<div class="text-lime-400 mb-1">🤖 Triagem IA</div><div><strong>Intenção:</strong> ${escape(c.intencao || '')}</div><div><strong>Resumo:</strong> ${escape(c.resumo || '')}</div>${c.sugestao_resposta ? `<div class="mt-2 p-2 bg-zinc-800 rounded text-zinc-300"><strong>Sugestão:</strong> ${escape(c.sugestao_resposta)}</div>` : ''}`;
-        } else {
-          el('drawer-triagem').textContent = '⏳ Aguardando triagem IA (recarregue em alguns segundos)';
-        }
-        el('drawer-mensagens').innerHTML = messages.length ? messages.map(m => `<div class="${m.direcao === 'in' ? 'msg-in' : 'msg-out'} rounded-lg p-3 text-sm"><div>${escape(m.corpo || '')}</div><div class="text-xs text-zinc-500 mt-1">${fmtTs(m.ts)}</div></div>`).join('') : '<div class="text-center text-zinc-500 text-sm">Sem mensagens</div>';
+        } else { el('drawer-triagem').textContent = '⏳ Lead manual — sem triagem IA'; }
+        el('drawer-mensagens').innerHTML = messages.length ? messages.map(m => `<div class="${m.direcao === 'in' ? 'msg-in' : 'msg-out'} rounded-lg p-3 text-sm"><div>${escape(m.corpo || '')}</div><div class="text-xs text-zinc-500 mt-1">${fmtTs(m.ts)}</div></div>`).join('') : '<div class="text-center text-zinc-500 text-sm">Sem mensagens (lead criado manualmente)</div>';
         el('drawer-mensagens').scrollTop = el('drawer-mensagens').scrollHeight;
         show('drawer-lead');
       } catch (e) { alert('Erro: ' + e.message); }
     }
     window.abrirLead = abrirLead;
+    let _saveTimer = null;
+    async function salvarInline(campo, valor) {
+      if (!_drawerLeadId) return;
+      clearTimeout(_saveTimer);
+      _saveTimer = setTimeout(async () => {
+        try { await api('/api/leads/' + _drawerLeadId, { method:'PATCH', body: JSON.stringify({ [campo]: valor }) }); const lead = _todosLeads.find(l => l.id === _drawerLeadId); if (lead) lead[campo] = valor; renderizar(); }
+        catch (e) { alert('Erro ao salvar: ' + e.message); }
+      }, 400);
+    }
+    el('drawer-stage').addEventListener('change', e => salvarInline('stage', e.target.value));
+    el('drawer-qualif').addEventListener('change', e => salvarInline('qualif', e.target.value));
+    el('drawer-valor').addEventListener('change', e => salvarInline('valor', Number(e.target.value || 0)));
+
     el('form-login').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = el('btn-login'); const erro = el('login-erro');
@@ -186,6 +334,32 @@
       finally { btn.disabled = false; btn.textContent = 'ENTRAR'; }
     });
     el('btn-logout').addEventListener('click', logout);
+    let _buscaTimer;
+    el('busca').addEventListener('input', e => { clearTimeout(_buscaTimer); _buscaTimer = setTimeout(() => { _busca = e.target.value.trim(); renderizar(); }, 200); });
+    document.querySelectorAll('.filtro-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('.filtro-chip').forEach(c => { c.classList.remove('bg-lime-400','text-zinc-950','font-semibold'); c.classList.add('bg-zinc-800','text-zinc-400'); });
+        chip.classList.remove('bg-zinc-800','text-zinc-400'); chip.classList.add('bg-lime-400','text-zinc-950','font-semibold');
+        _filtroAtivo = chip.dataset.filtro; renderizar();
+      });
+    });
+    el('btn-novo-lead').addEventListener('click', () => show('modal-novo'));
+    el('form-novo').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = el('btn-novo-enviar'); const out = el('novo-resultado');
+      btn.disabled = true; btn.textContent = 'CRIANDO...';
+      try {
+        const body = { nome: el('novo-nome').value.trim(), produto_interesse: el('novo-produto').value, qualif: el('novo-qualif').value, valor: Number(el('novo-valor').value || 0) };
+        const jid = el('novo-jid').value.trim(); if (jid) body.wa_jid = jid.includes('@') ? jid : `${jid}@s.whatsapp.net`;
+        const origem = el('novo-origem').value.trim(); if (origem) body.origem = origem;
+        await api('/api/leads', { method:'POST', body: JSON.stringify(body) });
+        out.classList.remove('hidden'); out.innerHTML = `<span class="text-lime-400">✓</span> Lead criado!`;
+        el('form-novo').reset();
+        await carregarLeads();
+        setTimeout(() => hide('modal-novo'), 800);
+      } catch (e) { out.classList.remove('hidden'); out.innerHTML = `<span class="text-red-400">✗</span> ${e.message}`; }
+      finally { btn.disabled = false; btn.textContent = 'CRIAR'; }
+    });
     el('btn-simular').addEventListener('click', () => show('modal-simular'));
     el('form-simular').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -193,19 +367,15 @@
       btn.disabled = true; btn.textContent = 'ENVIANDO...';
       try {
         const r = await api('/api/dev/simular-mensagem', { method:'POST', body: JSON.stringify({ wa_jid: el('sim-jid').value, push_name: el('sim-nome').value, corpo: el('sim-corpo').value }) });
-        out.classList.remove('hidden');
-        out.innerHTML = `<span class="text-lime-400">✓</span> Lead ${r.lead.criado_agora ? 'criado' : 'atualizado'}: <code>${r.lead.id.slice(0,8)}</code><br><span class="text-zinc-500">${r.info}</span>`;
-        await carregarLeads();
-        setTimeout(carregarLeads, 4000);
-      } catch (e) {
-        out.classList.remove('hidden');
-        out.innerHTML = `<span class="text-red-400">✗</span> ${e.message}`;
-      } finally { btn.disabled = false; btn.textContent = 'ENVIAR'; }
+        out.classList.remove('hidden'); out.innerHTML = `<span class="text-lime-400">✓</span> Lead ${r.lead.criado_agora ? 'criado' : 'atualizado'}: <code>${r.lead.id.slice(0,8)}</code><br><span class="text-zinc-500">${r.info}</span>`;
+        await carregarLeads(); setTimeout(carregarLeads, 4000);
+      } catch (e) { out.classList.remove('hidden'); out.innerHTML = `<span class="text-red-400">✗</span> ${e.message}`; }
+      finally { btn.disabled = false; btn.textContent = 'ENVIAR'; }
     });
     function atualizarRelogio() { el('footer-time').textContent = new Date().toLocaleTimeString('pt-BR'); }
     setInterval(atualizarRelogio, 1000); atualizarRelogio();
     if (getToken()) mostrarDashboard(); else el('screen-login').classList.remove('hidden');
-    setInterval(() => { if (getToken()) carregarLeads(); }, 8000);
+    setInterval(() => { if (getToken()) carregarLeads(); }, 10000);
   </script>
 </body>
 </html>
