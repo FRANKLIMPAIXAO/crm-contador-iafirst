@@ -37,6 +37,34 @@ webhookRouter.post('/evolution', async (req, res) => {
   const event = body.event;
   const data = body.data;
 
+  // ===== MESSAGES_UPDATE — atualização de status (entregue/lido) =====
+  if (event === 'messages.update') {
+    const waId = (data as any)?.key?.id || (data as any)?.keyId;
+    const statusEvolution = (data as any)?.status || (data as any)?.update?.status;
+    if (!waId || !statusEvolution) {
+      res.status(202).json({ ok: true, ignorado: 'update sem id/status' });
+      return;
+    }
+    // Map Evolution status (DELIVERY_ACK / READ / PLAYED) → nosso enum
+    const mapStatus: Record<string, string> = {
+      DELIVERY_ACK: 'delivered',
+      SERVER_ACK: 'sent',
+      READ: 'read',
+      PLAYED: 'read',
+      ERROR: 'failed',
+    };
+    const novoStatus = mapStatus[statusEvolution] || statusEvolution.toLowerCase();
+    try {
+      const { queryOne } = await import('../db/connection.js');
+      await queryOne(
+        `UPDATE messages SET status = $1 WHERE wa_message_id = $2`,
+        [novoStatus, waId],
+      );
+    } catch(_) {}
+    res.status(202).json({ ok: true, atualizado: waId, status: novoStatus });
+    return;
+  }
+
   if (event !== 'messages.upsert') {
     res.status(202).json({ ok: true, ignorado: event });
     return;

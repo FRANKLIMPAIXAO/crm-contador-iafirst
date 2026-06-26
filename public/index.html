@@ -193,7 +193,23 @@
       </div>
       <div class="px-6 py-3 border-b border-zinc-800 bg-zinc-950/30"><div id="drawer-triagem" class="text-xs text-zinc-400"></div></div>
       <div id="drawer-mensagens" class="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-2 scroll-thin"></div>
-      <div class="border-t border-zinc-800 px-6 py-3 text-xs text-zinc-500">💡 Envio WhatsApp chega na Fase 3</div>
+      <div class="border-t border-zinc-800 px-4 py-3 bg-zinc-950/40">
+        <div class="flex gap-2 mb-2 items-center">
+          <button id="btn-usar-sugestao" class="bg-zinc-800 hover:bg-zinc-700 text-lime-400 text-xs px-3 py-1 rounded border border-zinc-700 hidden">
+            ✨ Usar sugestão IA
+          </button>
+          <div id="env-status" class="text-xs text-zinc-500 ml-auto"></div>
+        </div>
+        <form id="form-enviar" class="flex gap-2">
+          <textarea id="resp-corpo" rows="2" required maxlength="4000"
+            placeholder="Digite resposta pro lead (Enter envia, Shift+Enter pula linha)"
+            class="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm resize-none focus:border-lime-400 focus:outline-none"></textarea>
+          <button type="submit" id="btn-enviar"
+            class="bg-lime-400 hover:bg-lime-300 text-zinc-950 font-semibold px-4 py-2 rounded-lg text-sm self-end">
+            📤 Enviar
+          </button>
+        </form>
+      </div>
     </div>
   </div>
 
@@ -288,6 +304,7 @@
       });
     }
     let _drawerLeadId = null;
+    let _ultimaSugestao = null;
     async function abrirLead(id) {
       try {
         const { lead, messages, activities } = await api('/api/leads/' + id);
@@ -302,16 +319,64 @@
         el('drawer-tags').innerHTML = tags.join('');
         el('drawer-stage').value = lead.stage; el('drawer-qualif').value = lead.qualif; el('drawer-valor').value = Number(lead.valor) || 0;
         const triagem = activities.find(a => a.tipo === 'triagem_ia');
+        _ultimaSugestao = null;
         if (triagem && triagem.conteudo) {
           const c = triagem.conteudo;
+          _ultimaSugestao = c.sugestao_resposta || null;
           el('drawer-triagem').innerHTML = `<div class="text-lime-400 mb-1">🤖 Triagem IA</div><div><strong>Intenção:</strong> ${escape(c.intencao || '')}</div><div><strong>Resumo:</strong> ${escape(c.resumo || '')}</div>${c.sugestao_resposta ? `<div class="mt-2 p-2 bg-zinc-800 rounded text-zinc-300"><strong>Sugestão:</strong> ${escape(c.sugestao_resposta)}</div>` : ''}`;
         } else { el('drawer-triagem').textContent = '⏳ Lead manual — sem triagem IA'; }
-        el('drawer-mensagens').innerHTML = messages.length ? messages.map(m => `<div class="${m.direcao === 'in' ? 'msg-in' : 'msg-out'} rounded-lg p-3 text-sm"><div>${escape(m.corpo || '')}</div><div class="text-xs text-zinc-500 mt-1">${fmtTs(m.ts)}</div></div>`).join('') : '<div class="text-center text-zinc-500 text-sm">Sem mensagens (lead criado manualmente)</div>';
-        el('drawer-mensagens').scrollTop = el('drawer-mensagens').scrollHeight;
+        el('btn-usar-sugestao').classList.toggle('hidden', !_ultimaSugestao);
+        renderMensagens(messages);
+        el('resp-corpo').value = ''; el('env-status').textContent = '';
         show('drawer-lead');
       } catch (e) { alert('Erro: ' + e.message); }
     }
     window.abrirLead = abrirLead;
+
+    const STATUS_ICONE = { received:'', sent:'✓', delivered:'✓✓', read:'✓✓ 👁', failed:'⚠️' };
+    function renderMensagens(messages) {
+      el('drawer-mensagens').innerHTML = messages.length
+        ? messages.map(m => `<div class="${m.direcao === 'in' ? 'msg-in' : 'msg-out'} rounded-lg p-3 text-sm">
+            <div>${escape(m.corpo || '')}</div>
+            <div class="text-xs text-zinc-500 mt-1 flex justify-between">
+              <span>${fmtTs(m.ts)}</span>
+              ${m.direcao === 'out' ? `<span class="${m.status === 'read' ? 'text-cyan-400' : m.status === 'failed' ? 'text-red-400' : 'text-zinc-500'}">${STATUS_ICONE[m.status] || ''}</span>` : ''}
+            </div>
+          </div>`).join('')
+        : '<div class="text-center text-zinc-500 text-sm">Sem mensagens ainda</div>';
+      el('drawer-mensagens').scrollTop = el('drawer-mensagens').scrollHeight;
+    }
+
+    el('btn-usar-sugestao').addEventListener('click', () => {
+      if (_ultimaSugestao) { el('resp-corpo').value = _ultimaSugestao; el('resp-corpo').focus(); }
+    });
+
+    el('resp-corpo').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el('form-enviar').requestSubmit(); }
+    });
+
+    el('form-enviar').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!_drawerLeadId) return;
+      const btn = el('btn-enviar'); const txt = el('resp-corpo');
+      const corpo = txt.value.trim(); if (!corpo) return;
+      btn.disabled = true; btn.textContent = '...';
+      el('env-status').textContent = 'enviando…';
+      try {
+        const r = await api('/api/messages/lead/' + _drawerLeadId, { method:'POST', body: JSON.stringify({ corpo }) });
+        txt.value = '';
+        el('env-status').innerHTML = r.aviso
+          ? `<span class="text-yellow-400">⚠️ ${escape(r.aviso)}</span>`
+          : `<span class="text-lime-400">✓ enviada</span>`;
+        // Recarrega mensagens do lead
+        const { messages } = await api('/api/leads/' + _drawerLeadId);
+        renderMensagens(messages);
+        carregarLeads();
+      } catch (e) {
+        el('env-status').innerHTML = `<span class="text-red-400">✗ ${e.message}</span>`;
+      } finally { btn.disabled = false; btn.textContent = '📤 Enviar'; }
+    });
+
     let _saveTimer = null;
     async function salvarInline(campo, valor) {
       if (!_drawerLeadId) return;
