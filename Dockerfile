@@ -7,6 +7,7 @@ WORKDIR /app
 COPY package*.json tsconfig.json ./
 RUN npm install
 COPY src ./src
+COPY public ./public
 RUN npm run build
 
 FROM node:20-slim
@@ -28,6 +29,7 @@ RUN npm install --omit=dev --no-audit --no-fund
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/src/db/schema.sql ./src/db/schema.sql
+COPY --from=builder /app/public ./public
 
 EXPOSE 3000
 
