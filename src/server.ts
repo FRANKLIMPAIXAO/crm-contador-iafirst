@@ -11,7 +11,8 @@ import { leadsRouter } from './routes/leads.js';
 import { messagesRouter } from './routes/messages.js';
 import { webhookRouter } from './routes/webhook.js';
 import { devRouter } from './routes/dev.js';
-import { pool } from './db/connection.js';
+import { pool, autoMigrate, autoSeed } from './db/connection.js';
+import { hashSenha } from './auth/hash.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -61,22 +62,44 @@ app.get(/^(?!\/api\/|\/health|\/ready|\/webhook).*/, (_req, res) => {
 
 app.use(errorHandler);
 
-const server = app.listen(config.PORT, () => {
-  console.log(`\n  🚀 CRM API rodando em http://localhost:${config.PORT}`);
-  console.log(`  📦 Ambiente: ${config.NODE_ENV}`);
-  console.log(`  🗄️  Banco: ${config.DATABASE_URL.replace(/:[^:@]+@/, ':***@')}`);
-  console.log(`  Pressione Ctrl+C para encerrar.\n`);
-});
+// ===== Boot: auto-migrate + auto-seed + listen =====
+async function bootstrap() {
+  // Auto-migrate só em produção (em dev, dev roda npm run db:migrate manual)
+  // Em produção, container nasce limpo e precisa do schema na 1ª subida
+  if (process.env.AUTO_MIGRATE !== 'false') {
+    try {
+      await autoMigrate();
+    } catch (err) {
+      console.error('[boot] migrate falhou — abortando.', err);
+      process.exit(1);
+    }
+  }
+  if (process.env.AUTO_SEED !== 'false') {
+    await autoSeed(hashSenha);
+  }
 
-function shutdown(sig: string) {
-  console.log(`\n[${sig}] encerrando...`);
-  server.close(() => {
-    pool.end().then(() => {
-      console.log('[shutdown] ok');
-      process.exit(0);
-    });
+  const server = app.listen(config.PORT, () => {
+    console.log(`\n  🚀 CRM API rodando em http://localhost:${config.PORT}`);
+    console.log(`  📦 Ambiente: ${config.NODE_ENV}`);
+    console.log(`  🗄️  Banco: ${config.DATABASE_URL.replace(/:[^:@]+@/, ':***@')}`);
+    console.log(`  Pressione Ctrl+C para encerrar.\n`);
   });
-  setTimeout(() => process.exit(1), 10_000).unref();
+
+  function shutdown(sig: string) {
+    console.log(`\n[${sig}] encerrando...`);
+    server.close(() => {
+      pool.end().then(() => {
+        console.log('[shutdown] ok');
+        process.exit(0);
+      });
+    });
+    setTimeout(() => process.exit(1), 10_000).unref();
+  }
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+
+bootstrap().catch((err) => {
+  console.error('[boot] falha crítica:', err);
+  process.exit(1);
+});
