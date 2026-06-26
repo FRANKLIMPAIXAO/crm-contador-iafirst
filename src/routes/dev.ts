@@ -1,23 +1,18 @@
 // src/routes/dev.ts
-// Rotas APENAS pra dev/teste — NUNCA expor em produção.
+// Rotas de teste/dev — em produção, só admin autenticado pode acessar.
+// Útil pra testar fluxo IA antes do Evolution estar conectado.
 import { Router } from 'express';
 import { z } from 'zod';
-import { requerAuth } from '../middleware/auth.js';
+import { requerAuth, requerPapel } from '../middleware/auth.js';
 import { getOrgId } from '../middleware/tenant.js';
 import { ingerirMensagemRecebida } from '../services/ingestao.js';
-import { isDev } from '../config.js';
 
 export const devRouter: Router = Router();
 
-devRouter.use((req, res, next) => {
-  if (!isDev) {
-    res.status(404).json({ erro: 'rota não encontrada' });
-    return;
-  }
-  next();
-});
-
+// Em qualquer ambiente, exige autenticação.
+// Em produção, exige adicionalmente que seja admin (closer/viewer não pode simular).
 devRouter.use(requerAuth);
+devRouter.use(requerPapel('admin'));
 
 const simularSchema = z.object({
   wa_jid: z.string().min(5).default('5562999999999@s.whatsapp.net'),
@@ -46,12 +41,14 @@ devRouter.post('/simular-mensagem', async (req, res, next) => {
   }
 });
 
-devRouter.get('/leads-recentes', async (_req, res, next) => {
+devRouter.get('/leads-recentes', async (req, res, next) => {
   try {
+    const orgId = getOrgId(req);
     const { query } = await import('../db/connection.js');
     const leads = await query(
       `SELECT id, wa_jid, nome, stage, qualif, score, produto_interesse, last_message_at
-       FROM leads ORDER BY created_at DESC LIMIT 5`,
+       FROM leads WHERE org_id = $1 ORDER BY created_at DESC LIMIT 5`,
+      [orgId],
     );
     res.json({ leads });
   } catch (err) {
