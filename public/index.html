@@ -7,13 +7,16 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    .stage-card { transition: all 0.2s; }
-    .stage-card:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,.4); }
+    .stage-card { transition: all 0.15s; }
+    .stage-card:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,.5); border-color: #84cc16; }
+    .modal-overlay { backdrop-filter: blur(4px); }
+    .msg-in { background: #18181b; border: 1px solid #27272a; align-self: flex-start; max-width: 75%; }
+    .msg-out { background: #1a2e05; border: 1px solid #365314; align-self: flex-end; max-width: 75%; }
+    .scroll-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+    .scroll-thin::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
   </style>
 </head>
 <body class="bg-zinc-950 text-zinc-100 min-h-screen">
-
-  <!-- ============= TELA LOGIN ============= -->
   <div id="screen-login" class="min-h-screen flex items-center justify-center px-4">
     <div class="w-full max-w-md">
       <div class="text-center mb-8">
@@ -23,265 +26,186 @@
       <form id="form-login" class="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 space-y-4">
         <div>
           <label class="text-xs uppercase tracking-wider text-zinc-400 mb-1 block">Email</label>
-          <input id="email" type="email" required value="franklim@x.com"
-                 class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-3 text-zinc-100 focus:border-lime-400 focus:outline-none" />
+          <input id="email" type="email" required value="franklim@x.com" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-3 text-zinc-100 focus:border-lime-400 focus:outline-none" />
         </div>
         <div>
           <label class="text-xs uppercase tracking-wider text-zinc-400 mb-1 block">Senha</label>
-          <input id="senha" type="password" required value="trocar123"
-                 class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-3 text-zinc-100 focus:border-lime-400 focus:outline-none" />
+          <input id="senha" type="password" required value="trocar123" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-3 text-zinc-100 focus:border-lime-400 focus:outline-none" />
         </div>
-        <button type="submit" id="btn-login"
-                class="w-full bg-lime-400 hover:bg-lime-300 text-zinc-950 font-semibold py-3 rounded-lg transition">
-          ENTRAR
-        </button>
+        <button type="submit" id="btn-login" class="w-full bg-lime-400 hover:bg-lime-300 text-zinc-950 font-semibold py-3 rounded-lg transition">ENTRAR</button>
         <div id="login-erro" class="text-red-400 text-sm hidden"></div>
       </form>
-      <div class="mt-6 text-center text-xs text-zinc-500">
-        v0.1.0 • Fase 0 — base funcional<br>
-        Próximo: webhook WhatsApp + painel completo
-      </div>
+      <div class="mt-6 text-center text-xs text-zinc-500">v0.2.0 • Fase 1 — webhook + triagem IA</div>
     </div>
   </div>
-
-  <!-- ============= TELA DASHBOARD ============= -->
   <div id="screen-dashboard" class="hidden min-h-screen flex flex-col">
-
-    <!-- Header -->
     <header class="border-b border-zinc-800 px-6 py-3 flex items-center justify-between bg-zinc-900">
       <div class="flex items-center gap-4">
         <h1 class="text-lime-400 font-bold text-xl">CRM</h1>
         <span class="text-zinc-500 text-xs uppercase tracking-widest">Contador IA First</span>
       </div>
-      <div class="flex items-center gap-4">
+      <div class="flex items-center gap-3">
+        <button id="btn-simular" class="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 text-sm px-3 py-1.5 rounded transition">🧪 Simular lead</button>
         <div class="text-right text-sm">
           <div id="header-nome" class="text-zinc-100 font-medium"></div>
           <div id="header-org" class="text-zinc-500 text-xs"></div>
         </div>
-        <button id="btn-logout" class="text-zinc-400 hover:text-red-400 text-sm border border-zinc-800 hover:border-red-400 px-3 py-1 rounded transition">
-          SAIR
-        </button>
+        <button id="btn-logout" class="text-zinc-400 hover:text-red-400 text-sm border border-zinc-800 hover:border-red-400 px-3 py-1 rounded transition">SAIR</button>
       </div>
     </header>
-
-    <!-- Métricas topo -->
     <div class="grid grid-cols-2 md:grid-cols-6 gap-3 p-6">
-      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-        <div class="text-xs uppercase tracking-wider text-zinc-500">Total leads</div>
-        <div class="text-2xl font-bold text-zinc-100 mt-1" id="metric-total">0</div>
-      </div>
-      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-        <div class="text-xs uppercase tracking-wider text-zinc-500">Novos</div>
-        <div class="text-2xl font-bold text-blue-400 mt-1" id="metric-novo">0</div>
-      </div>
-      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-        <div class="text-xs uppercase tracking-wider text-zinc-500">Qualificados</div>
-        <div class="text-2xl font-bold text-cyan-400 mt-1" id="metric-qualificado">0</div>
-      </div>
-      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-        <div class="text-xs uppercase tracking-wider text-zinc-500">Proposta</div>
-        <div class="text-2xl font-bold text-yellow-400 mt-1" id="metric-proposta">0</div>
-      </div>
-      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-        <div class="text-xs uppercase tracking-wider text-zinc-500">Fechados</div>
-        <div class="text-2xl font-bold text-lime-400 mt-1" id="metric-fechado">0</div>
-      </div>
-      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-        <div class="text-xs uppercase tracking-wider text-zinc-500">Quentes 🔥</div>
-        <div class="text-2xl font-bold text-orange-400 mt-1" id="metric-quente">0</div>
-      </div>
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Total leads</div><div class="text-2xl font-bold text-zinc-100 mt-1" id="metric-total">0</div></div>
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Novos</div><div class="text-2xl font-bold text-blue-400 mt-1" id="metric-novo">0</div></div>
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Qualificados</div><div class="text-2xl font-bold text-cyan-400 mt-1" id="metric-qualificado">0</div></div>
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Proposta</div><div class="text-2xl font-bold text-yellow-400 mt-1" id="metric-proposta">0</div></div>
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Fechados</div><div class="text-2xl font-bold text-lime-400 mt-1" id="metric-fechado">0</div></div>
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Quentes 🔥</div><div class="text-2xl font-bold text-orange-400 mt-1" id="metric-quente">0</div></div>
     </div>
-
-    <!-- Pipeline Kanban -->
     <div class="flex-1 px-6 pb-6 overflow-x-auto">
       <div class="flex gap-4 min-h-[500px]">
-        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3">
-          <h3 class="text-xs uppercase tracking-widest text-blue-400 font-semibold mb-3 px-2">⚡ Novo <span id="count-novo" class="text-zinc-500 ml-1">0</span></h3>
-          <div id="col-novo" class="space-y-2"></div>
-        </div>
-        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3">
-          <h3 class="text-xs uppercase tracking-widest text-cyan-400 font-semibold mb-3 px-2">🎯 Qualificado <span id="count-qualificado" class="text-zinc-500 ml-1">0</span></h3>
-          <div id="col-qualificado" class="space-y-2"></div>
-        </div>
-        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3">
-          <h3 class="text-xs uppercase tracking-widest text-yellow-400 font-semibold mb-3 px-2">📋 Proposta <span id="count-proposta" class="text-zinc-500 ml-1">0</span></h3>
-          <div id="col-proposta" class="space-y-2"></div>
-        </div>
-        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3">
-          <h3 class="text-xs uppercase tracking-widest text-orange-400 font-semibold mb-3 px-2">💬 Negociação <span id="count-negociacao" class="text-zinc-500 ml-1">0</span></h3>
-          <div id="col-negociacao" class="space-y-2"></div>
-        </div>
-        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3">
-          <h3 class="text-xs uppercase tracking-widest text-lime-400 font-semibold mb-3 px-2">✅ Fechado <span id="count-fechado" class="text-zinc-500 ml-1">0</span></h3>
-          <div id="col-fechado" class="space-y-2"></div>
-        </div>
+        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3"><h3 class="text-xs uppercase tracking-widest text-blue-400 font-semibold mb-3 px-2">⚡ Novo <span id="count-novo" class="text-zinc-500 ml-1">0</span></h3><div id="col-novo" class="space-y-2"></div></div>
+        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3"><h3 class="text-xs uppercase tracking-widest text-cyan-400 font-semibold mb-3 px-2">🎯 Qualificado <span id="count-qualificado" class="text-zinc-500 ml-1">0</span></h3><div id="col-qualificado" class="space-y-2"></div></div>
+        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3"><h3 class="text-xs uppercase tracking-widest text-yellow-400 font-semibold mb-3 px-2">📋 Proposta <span id="count-proposta" class="text-zinc-500 ml-1">0</span></h3><div id="col-proposta" class="space-y-2"></div></div>
+        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3"><h3 class="text-xs uppercase tracking-widest text-orange-400 font-semibold mb-3 px-2">💬 Negociação <span id="count-negociacao" class="text-zinc-500 ml-1">0</span></h3><div id="col-negociacao" class="space-y-2"></div></div>
+        <div class="flex-1 min-w-[260px] bg-zinc-900/50 border border-zinc-800 rounded-xl p-3"><h3 class="text-xs uppercase tracking-widest text-lime-400 font-semibold mb-3 px-2">✅ Fechado <span id="count-fechado" class="text-zinc-500 ml-1">0</span></h3><div id="col-fechado" class="space-y-2"></div></div>
       </div>
-
-      <!-- Estado vazio -->
-      <div id="estado-vazio" class="text-center py-16">
-        <div class="text-6xl mb-4">📫</div>
-        <h2 class="text-xl text-zinc-300 mb-2">Nenhum lead ainda</h2>
-        <p class="text-zinc-500 text-sm max-w-md mx-auto">
-          Os leads vão aparecer aqui automaticamente quando o webhook do WhatsApp (Evolution API) estiver conectado na Fase 1.
-        </p>
-        <button id="btn-criar-fake" class="mt-6 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm px-4 py-2 rounded-lg border border-zinc-700">
-          + Criar lead de teste (mock)
-        </button>
-      </div>
+      <div id="estado-vazio" class="text-center py-16"><div class="text-6xl mb-4">📫</div><h2 class="text-xl text-zinc-300 mb-2">Nenhum lead ainda</h2><p class="text-zinc-500 text-sm max-w-md mx-auto">Use <strong class="text-lime-400">🧪 Simular lead</strong> pra testar o fluxo IA agora.</p></div>
     </div>
-
-    <!-- Footer status -->
-    <footer class="border-t border-zinc-800 px-6 py-2 text-xs text-zinc-500 flex justify-between bg-zinc-900">
-      <div>
-        <span class="text-lime-400">●</span> API online
-        <span class="ml-3">⏱️ <span id="footer-time"></span></span>
-      </div>
-      <div>v0.1.0 • Fase 0</div>
-    </footer>
+    <footer class="border-t border-zinc-800 px-6 py-2 text-xs text-zinc-500 flex justify-between bg-zinc-900"><div><span class="text-lime-400">●</span> API online <span class="ml-3">⏱️ <span id="footer-time"></span></span></div><div>v0.2.0 • Fase 1</div></footer>
   </div>
-
+  <div id="modal-simular" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4 modal-overlay bg-black/60">
+    <div class="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-lg">
+      <div class="flex justify-between items-start mb-4"><div><h2 class="text-lg font-semibold text-lime-400">🧪 Simular mensagem recebida</h2><p class="text-xs text-zinc-500 mt-1">Pra testar fluxo IA sem WhatsApp conectado</p></div><button onclick="hide('modal-simular')" class="text-zinc-500 hover:text-zinc-200 text-2xl leading-none">×</button></div>
+      <form id="form-simular" class="space-y-3">
+        <div><label class="text-xs uppercase tracking-wider text-zinc-400 mb-1 block">Número WhatsApp (JID)</label><input id="sim-jid" required value="5562999999999@s.whatsapp.net" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="text-xs uppercase tracking-wider text-zinc-400 mb-1 block">Nome do lead</label><input id="sim-nome" value="Juliana Ferraz" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="text-xs uppercase tracking-wider text-zinc-400 mb-1 block">Mensagem do lead</label><textarea id="sim-corpo" rows="4" required class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm">Ainda dá tempo de entrar na Turma 01 do Contador IA First em agosto? Tenho escritório com 35 clientes, regimes mistos.</textarea></div>
+        <div class="flex gap-2 pt-2"><button type="button" onclick="hide('modal-simular')" class="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-2 rounded-lg text-sm">CANCELAR</button><button type="submit" id="btn-sim-enviar" class="flex-1 bg-lime-400 hover:bg-lime-300 text-zinc-950 font-semibold py-2 rounded-lg text-sm">ENVIAR</button></div>
+        <div id="sim-resultado" class="text-xs text-zinc-400 hidden"></div>
+      </form>
+    </div>
+  </div>
+  <div id="drawer-lead" class="hidden fixed inset-0 z-40 flex justify-end">
+    <div class="absolute inset-0 bg-black/60 modal-overlay" onclick="hide('drawer-lead')"></div>
+    <div class="relative bg-zinc-900 border-l border-zinc-800 w-full max-w-2xl h-full flex flex-col">
+      <div class="border-b border-zinc-800 px-6 py-4 flex justify-between items-start"><div><h2 id="drawer-nome" class="text-lg font-semibold text-zinc-100"></h2><div id="drawer-jid" class="text-xs text-zinc-500 mt-1"></div><div id="drawer-tags" class="flex gap-2 mt-2 flex-wrap"></div></div><button onclick="hide('drawer-lead')" class="text-zinc-500 hover:text-zinc-200 text-2xl leading-none">×</button></div>
+      <div class="px-6 py-3 border-b border-zinc-800 bg-zinc-950/50"><div id="drawer-triagem" class="text-xs text-zinc-400"></div></div>
+      <div id="drawer-mensagens" class="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-2 scroll-thin"></div>
+      <div class="border-t border-zinc-800 px-6 py-3 text-xs text-zinc-500">Envio de mensagem chega na Fase 3</div>
+    </div>
+  </div>
   <script>
-    const API = '';
-    const tokenKey = 'crm_token';
-    const userKey = 'crm_user';
-
+    const API = ''; const tokenKey = 'crm_token'; const userKey = 'crm_user';
     function el(id) { return document.getElementById(id); }
-    function show(id) { el(id).classList.remove('hidden'); }
-    function hide(id) { el(id).classList.add('hidden'); }
-
+    function show(id) { el(id).classList.remove('hidden'); el(id).classList.add('flex'); }
+    function hide(id) { el(id).classList.add('hidden'); el(id).classList.remove('flex'); }
+    window.show = show; window.hide = hide;
     function getToken() { return localStorage.getItem(tokenKey); }
-    function getUser() {
-      const raw = localStorage.getItem(userKey);
-      return raw ? JSON.parse(raw) : null;
-    }
-
+    function getUser() { const raw = localStorage.getItem(userKey); return raw ? JSON.parse(raw) : null; }
     async function api(path, opts = {}) {
       const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
-      const token = getToken();
-      if (token) headers.Authorization = 'Bearer ' + token;
+      const token = getToken(); if (token) headers.Authorization = 'Bearer ' + token;
       const r = await fetch(API + path, { ...opts, headers });
-      if (r.status === 401) {
-        logout();
-        throw new Error('Não autenticado');
-      }
+      if (r.status === 401) { logout(); throw new Error('Não autenticado'); }
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.erro || 'Erro ' + r.status);
       return data;
     }
-
     async function login(email, senha) {
-      const data = await api('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, senha })
-      });
-      localStorage.setItem(tokenKey, data.token);
-      localStorage.setItem(userKey, JSON.stringify(data.user));
+      const data = await api('/api/auth/login', { method:'POST', body: JSON.stringify({email,senha}) });
+      localStorage.setItem(tokenKey, data.token); localStorage.setItem(userKey, JSON.stringify(data.user));
       mostrarDashboard();
     }
-
     function logout() {
-      localStorage.removeItem(tokenKey);
-      localStorage.removeItem(userKey);
-      hide('screen-dashboard');
-      show('screen-login');
+      localStorage.removeItem(tokenKey); localStorage.removeItem(userKey);
+      el('screen-dashboard').classList.add('hidden'); el('screen-login').classList.remove('hidden');
     }
-
     async function mostrarDashboard() {
-      hide('screen-login');
-      show('screen-dashboard');
+      el('screen-login').classList.add('hidden');
+      el('screen-dashboard').classList.remove('hidden'); el('screen-dashboard').classList.add('flex');
       const user = getUser();
-      if (user) {
-        el('header-nome').textContent = user.nome;
-        el('header-org').textContent = user.papel.toUpperCase();
-      }
+      if (user) { el('header-nome').textContent = user.nome; el('header-org').textContent = user.papel.toUpperCase(); }
       await carregarLeads();
     }
-
+    const PRODUTO_LABEL = { familia: 'Família TributárIA', iafirst: 'Contador IA First', pacservice: 'PACSERVICE', contachat: 'ContaChat', indefinido: '—' };
+    const QUALIF_COR = { frio: 'text-blue-400', morno: 'text-yellow-400', quente: 'text-orange-400' };
     function cardLead(lead) {
-      const qualif = { frio: 'text-blue-400', morno: 'text-yellow-400', quente: 'text-orange-400' };
-      const produto = {
-        familia: 'Família TributárIA',
-        iafirst: 'Contador IA First',
-        pacservice: 'PACSERVICE',
-        contachat: 'ContaChat',
-        indefinido: '—'
-      };
-      return `
-        <div class="stage-card bg-zinc-900 border border-zinc-800 rounded-lg p-3 cursor-pointer">
-          <div class="flex justify-between items-start mb-1">
-            <div class="font-medium text-zinc-100 text-sm">${escape(lead.nome || lead.wa_jid)}</div>
-            <span class="${qualif[lead.qualif] || 'text-zinc-500'} text-xs">●</span>
-          </div>
-          <div class="text-xs text-zinc-500">${produto[lead.produto_interesse] || ''}</div>
-          ${lead.valor > 0 ? `<div class="text-xs text-lime-400 mt-1">R$ ${Number(lead.valor).toLocaleString('pt-BR')}</div>` : ''}
-        </div>
-      `;
+      return `<div class="stage-card bg-zinc-900 border border-zinc-800 rounded-lg p-3 cursor-pointer" onclick="abrirLead('${lead.id}')"><div class="flex justify-between items-start mb-1"><div class="font-medium text-zinc-100 text-sm truncate flex-1">${escape(lead.nome || lead.wa_jid)}</div><span class="${QUALIF_COR[lead.qualif] || 'text-zinc-500'} text-xs ml-2">●</span></div><div class="text-xs text-zinc-500 truncate">${PRODUTO_LABEL[lead.produto_interesse] || ''}</div><div class="flex justify-between items-center mt-2">${lead.score > 0 ? `<div class="text-xs text-zinc-400">${lead.score}/100</div>` : '<div></div>'}${lead.valor > 0 ? `<div class="text-xs text-lime-400">R$ ${Number(lead.valor).toLocaleString('pt-BR')}</div>` : ''}</div></div>`;
     }
-
-    function escape(s) {
-      return String(s || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-    }
-
+    function escape(s) { return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+    function fmtTs(ts) { const d = new Date(ts); return d.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }); }
     async function carregarLeads() {
       try {
         const { leads } = await api('/api/leads');
         const stages = ['novo','qualificado','proposta','negociacao','fechado','perdido'];
         const por = Object.fromEntries(stages.map(s => [s, []]));
         for (const l of leads) (por[l.stage] || por.novo).push(l);
-
         el('metric-total').textContent = leads.length;
         el('metric-novo').textContent = por.novo.length;
         el('metric-qualificado').textContent = por.qualificado.length;
         el('metric-proposta').textContent = por.proposta.length;
         el('metric-fechado').textContent = por.fechado.length;
         el('metric-quente').textContent = leads.filter(l => l.qualif === 'quente').length;
-
         for (const s of ['novo','qualificado','proposta','negociacao','fechado']) {
           el('col-' + s).innerHTML = por[s].map(cardLead).join('');
           el('count-' + s).textContent = por[s].length;
         }
-
-        if (leads.length === 0) show('estado-vazio'); else hide('estado-vazio');
-      } catch (e) {
-        console.error('[carregarLeads]', e.message);
-      }
+        if (leads.length === 0) el('estado-vazio').classList.remove('hidden'); else el('estado-vazio').classList.add('hidden');
+      } catch (e) { console.error('[carregarLeads]', e.message); }
     }
-
+    async function abrirLead(id) {
+      try {
+        const { lead, messages, activities } = await api('/api/leads/' + id);
+        el('drawer-nome').textContent = lead.nome || lead.wa_jid;
+        el('drawer-jid').textContent = lead.wa_jid + ' • ' + (PRODUTO_LABEL[lead.produto_interesse] || '');
+        const tags = [];
+        tags.push(`<span class="bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded text-xs ${QUALIF_COR[lead.qualif]}">${lead.qualif}</span>`);
+        tags.push(`<span class="bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded text-xs">${lead.stage}</span>`);
+        if (lead.score) tags.push(`<span class="bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded text-xs">score ${lead.score}</span>`);
+        if (lead.cnpj) tags.push(`<span class="bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded text-xs">CNPJ ${lead.cnpj}</span>`);
+        el('drawer-tags').innerHTML = tags.join('');
+        const triagem = activities.find(a => a.tipo === 'triagem_ia');
+        if (triagem && triagem.conteudo) {
+          const c = triagem.conteudo;
+          el('drawer-triagem').innerHTML = `<div class="text-lime-400 mb-1">🤖 Triagem IA</div><div><strong>Intenção:</strong> ${escape(c.intencao || '')}</div><div><strong>Resumo:</strong> ${escape(c.resumo || '')}</div>${c.sugestao_resposta ? `<div class="mt-2 p-2 bg-zinc-800 rounded text-zinc-300"><strong>Sugestão:</strong> ${escape(c.sugestao_resposta)}</div>` : ''}`;
+        } else {
+          el('drawer-triagem').textContent = '⏳ Aguardando triagem IA (recarregue em alguns segundos)';
+        }
+        el('drawer-mensagens').innerHTML = messages.length ? messages.map(m => `<div class="${m.direcao === 'in' ? 'msg-in' : 'msg-out'} rounded-lg p-3 text-sm"><div>${escape(m.corpo || '')}</div><div class="text-xs text-zinc-500 mt-1">${fmtTs(m.ts)}</div></div>`).join('') : '<div class="text-center text-zinc-500 text-sm">Sem mensagens</div>';
+        el('drawer-mensagens').scrollTop = el('drawer-mensagens').scrollHeight;
+        show('drawer-lead');
+      } catch (e) { alert('Erro: ' + e.message); }
+    }
+    window.abrirLead = abrirLead;
     el('form-login').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const btn = el('btn-login');
-      const erro = el('login-erro');
-      btn.disabled = true; btn.textContent = 'ENTRANDO...';
-      erro.classList.add('hidden');
-      try {
-        await login(el('email').value.trim(), el('senha').value);
-      } catch (e) {
-        erro.textContent = e.message;
-        erro.classList.remove('hidden');
-      } finally {
-        btn.disabled = false; btn.textContent = 'ENTRAR';
-      }
+      const btn = el('btn-login'); const erro = el('login-erro');
+      btn.disabled = true; btn.textContent = 'ENTRANDO...'; erro.classList.add('hidden');
+      try { await login(el('email').value.trim(), el('senha').value); }
+      catch (e) { erro.textContent = e.message; erro.classList.remove('hidden'); }
+      finally { btn.disabled = false; btn.textContent = 'ENTRAR'; }
     });
-
     el('btn-logout').addEventListener('click', logout);
-
-    el('btn-criar-fake').addEventListener('click', async () => {
-      alert('Endpoint POST /api/leads ainda não existe — vem na Fase 1 com o webhook real.\n\nA UI já está pronta pra mostrar os leads assim que chegarem.');
+    el('btn-simular').addEventListener('click', () => show('modal-simular'));
+    el('form-simular').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = el('btn-sim-enviar'); const out = el('sim-resultado');
+      btn.disabled = true; btn.textContent = 'ENVIANDO...';
+      try {
+        const r = await api('/api/dev/simular-mensagem', { method:'POST', body: JSON.stringify({ wa_jid: el('sim-jid').value, push_name: el('sim-nome').value, corpo: el('sim-corpo').value }) });
+        out.classList.remove('hidden');
+        out.innerHTML = `<span class="text-lime-400">✓</span> Lead ${r.lead.criado_agora ? 'criado' : 'atualizado'}: <code>${r.lead.id.slice(0,8)}</code><br><span class="text-zinc-500">${r.info}</span>`;
+        await carregarLeads();
+        setTimeout(carregarLeads, 4000);
+      } catch (e) {
+        out.classList.remove('hidden');
+        out.innerHTML = `<span class="text-red-400">✗</span> ${e.message}`;
+      } finally { btn.disabled = false; btn.textContent = 'ENVIAR'; }
     });
-
-    function atualizarRelogio() {
-      el('footer-time').textContent = new Date().toLocaleTimeString('pt-BR');
-    }
-    setInterval(atualizarRelogio, 1000);
-    atualizarRelogio();
-
-    if (getToken()) {
-      mostrarDashboard();
-    } else {
-      show('screen-login');
-    }
-
-    setInterval(() => { if (getToken()) carregarLeads(); }, 10000);
+    function atualizarRelogio() { el('footer-time').textContent = new Date().toLocaleTimeString('pt-BR'); }
+    setInterval(atualizarRelogio, 1000); atualizarRelogio();
+    if (getToken()) mostrarDashboard(); else el('screen-login').classList.remove('hidden');
+    setInterval(() => { if (getToken()) carregarLeads(); }, 8000);
   </script>
 </body>
 </html>

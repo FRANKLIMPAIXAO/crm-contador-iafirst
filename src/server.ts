@@ -10,12 +10,12 @@ import { authRouter } from './routes/auth.js';
 import { leadsRouter } from './routes/leads.js';
 import { messagesRouter } from './routes/messages.js';
 import { webhookRouter } from './routes/webhook.js';
+import { devRouter } from './routes/dev.js';
 import { pool } from './db/connection.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-// Middlewares base
 app.use(
   cors({
     origin: config.CORS_ORIGIN.split(',').map((s) => s.trim()),
@@ -25,18 +25,16 @@ app.use(
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// Liveness
 app.get('/health', (_req, res) => {
   res.json({
     ok: true,
     service: 'crm-api',
-    version: '0.1.0',
+    version: '0.2.0',
     env: config.NODE_ENV,
     time: new Date().toISOString(),
   });
 });
 
-// Readiness (banco respondendo?)
 app.get('/ready', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
@@ -46,25 +44,21 @@ app.get('/ready', async (_req, res) => {
   }
 });
 
-// Rotas API (montadas ANTES do static)
 app.use('/api/auth', authRouter);
 app.use('/api/leads', leadsRouter);
 app.use('/api/messages', messagesRouter);
+app.use('/api/dev', devRouter);
 app.use('/webhook', webhookRouter);
 
-// Arquivos estáticos (painel HTML)
-// __dirname em runtime é dist/ — public/ fica 2 níveis acima
 const publicDir = path.resolve(__dirname, '..', 'public');
 app.use(express.static(publicDir));
 
-// SPA fallback — qualquer rota não-API retorna index.html
 app.get(/^(?!\/api\/|\/health|\/ready|\/webhook).*/, (_req, res) => {
   res.sendFile(path.join(publicDir, 'index.html'), (err) => {
     if (err) res.status(404).json({ erro: 'rota não encontrada' });
   });
 });
 
-// Error handler global (DEVE ser o último)
 app.use(errorHandler);
 
 const server = app.listen(config.PORT, () => {
@@ -74,7 +68,6 @@ const server = app.listen(config.PORT, () => {
   console.log(`  Pressione Ctrl+C para encerrar.\n`);
 });
 
-// Graceful shutdown
 function shutdown(sig: string) {
   console.log(`\n[${sig}] encerrando...`);
   server.close(() => {
