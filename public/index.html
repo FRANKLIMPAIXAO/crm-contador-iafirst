@@ -67,6 +67,15 @@
       </div>
     </header>
 
+    <!-- Tabs navigation -->
+    <nav class="bg-zinc-900 border-b border-zinc-800 px-6 flex gap-1 flex-shrink-0">
+      <button data-tab="leads" class="tab-btn px-4 py-3 text-sm border-b-2 border-lime-400 text-lime-400 font-semibold">⚡ Leads</button>
+      <button data-tab="mentorados" class="tab-btn px-4 py-3 text-sm border-b-2 border-transparent text-zinc-400 hover:text-zinc-200">🎓 Mentorados</button>
+      <button data-tab="financeiro" class="tab-btn px-4 py-3 text-sm border-b-2 border-transparent text-zinc-400 hover:text-zinc-200">💰 Financeiro</button>
+    </nav>
+
+    <!-- ============= VIEW LEADS (atual) ============= -->
+    <div id="view-leads" class="flex-1 flex flex-col overflow-hidden">
     <div class="px-6 pt-4">
       <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
         <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase tracking-wider text-zinc-500">Total leads</div><div class="text-2xl font-bold text-zinc-100 mt-1" id="metric-total">0</div></div>
@@ -103,10 +112,60 @@
         <p class="text-zinc-500 text-sm max-w-md mx-auto">Use <strong class="text-lime-400">+ Novo lead</strong> ou <strong class="text-lime-400">🧪 Simular</strong>.</p>
       </div>
     </div>
+    </div><!-- /view-leads -->
+
+    <!-- ============= VIEW MENTORADOS ============= -->
+    <div id="view-mentorados" class="hidden flex-1 flex flex-col overflow-hidden">
+      <div class="px-6 pt-4 flex justify-between items-center gap-3 flex-shrink-0">
+        <div class="flex gap-3">
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3 min-w-[140px]"><div class="text-xs uppercase tracking-wider text-zinc-500">Alunos ativos</div><div class="text-2xl font-bold text-lime-400 mt-1" id="m-total">0</div></div>
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3 min-w-[140px]"><div class="text-xs uppercase tracking-wider text-zinc-500">Inadimplentes</div><div class="text-2xl font-bold text-red-400 mt-1" id="m-inad">0</div></div>
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3 min-w-[180px]"><div class="text-xs uppercase tracking-wider text-zinc-500">Total pago histórico</div><div class="text-xl font-bold text-zinc-100 mt-1" id="m-pago">R$ 0</div></div>
+        </div>
+        <div class="flex gap-2">
+          <button id="btn-mentorias" class="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 text-sm px-3 py-1.5 rounded">📚 Mentorias</button>
+          <button id="btn-novo-aluno" class="bg-lime-400 hover:bg-lime-300 text-zinc-950 text-sm font-semibold px-3 py-1.5 rounded">+ Novo aluno</button>
+        </div>
+      </div>
+      <div class="flex-1 px-6 py-4 overflow-y-auto">
+        <table class="w-full text-sm">
+          <thead class="text-xs uppercase tracking-wider text-zinc-500 border-b border-zinc-800">
+            <tr>
+              <th class="text-left py-3 px-2">Nome</th>
+              <th class="text-left py-3 px-2">WhatsApp</th>
+              <th class="text-left py-3 px-2">Mentoria(s)</th>
+              <th class="text-right py-3 px-2">Valor/mês</th>
+              <th class="text-center py-3 px-2">Venc.</th>
+              <th class="text-center py-3 px-2">Status</th>
+              <th class="text-right py-3 px-2">Total pago</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-alunos" class="divide-y divide-zinc-800"></tbody>
+        </table>
+        <div id="alunos-vazio" class="text-center py-16 hidden">
+          <div class="text-6xl mb-4">🎓</div>
+          <h2 class="text-xl text-zinc-300 mb-2">Nenhum mentorado cadastrado</h2>
+          <p class="text-zinc-500 text-sm">Crie sua primeira <strong class="text-lime-400">📚 Mentoria</strong> e depois adicione alunos.</p>
+        </div>
+      </div>
+    </div><!-- /view-mentorados -->
+
+    <!-- ============= VIEW FINANCEIRO ============= -->
+    <div id="view-financeiro" class="hidden flex-1 flex flex-col overflow-hidden">
+      <div class="px-6 pt-4 grid grid-cols-2 md:grid-cols-4 gap-3 flex-shrink-0">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase text-zinc-500">Faturado este mês</div><div class="text-2xl font-bold text-lime-400 mt-1" id="f-faturado">R$ 0</div></div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase text-zinc-500">Inadimplência</div><div class="text-2xl font-bold text-red-400 mt-1" id="f-inad">R$ 0</div></div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase text-zinc-500">Próximos 7 dias</div><div class="text-2xl font-bold text-yellow-400 mt-1" id="f-prox">R$ 0</div></div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase text-zinc-500">Cobranças atrasadas</div><div class="text-2xl font-bold text-orange-400 mt-1" id="f-atrasadas">0</div></div>
+      </div>
+      <div class="px-6 py-4 text-zinc-500 text-sm">
+        💡 Lista de cobranças + integração PIX Banco Inter + emissão NFS-e Focus chegam na próxima fase.
+      </div>
+    </div><!-- /view-financeiro -->
 
     <footer class="border-t border-zinc-800 px-6 py-2 text-xs text-zinc-500 flex justify-between bg-zinc-900 flex-shrink-0">
-      <div><span class="text-lime-400">●</span> API online <span class="ml-3">⏱️ <span id="footer-time"></span></span> <span class="ml-3">💡 Arraste cards entre colunas</span></div>
-      <div>v0.3.0 • Fase 2</div>
+      <div><span class="text-lime-400">●</span> API online <span class="ml-3">⏱️ <span id="footer-time"></span></span></div>
+      <div>v0.4.0 • Fase 7.3</div>
     </footer>
   </div>
 
@@ -210,6 +269,62 @@
           </button>
         </form>
       </div>
+    </div>
+  </div>
+
+  <!-- ============= MODAL NOVO ALUNO ============= -->
+  <div id="modal-aluno" class="hidden fixed inset-0 z-50 items-center justify-center px-4 modal-overlay bg-black/60">
+    <div class="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-xl max-h-[90vh] overflow-y-auto scroll-thin">
+      <div class="flex justify-between items-start mb-4">
+        <h2 class="text-lg font-semibold text-lime-400">🎓 <span id="aluno-modal-titulo">Novo mentorado</span></h2>
+        <button onclick="hide('modal-aluno')" class="text-zinc-500 hover:text-zinc-200 text-2xl leading-none">×</button>
+      </div>
+      <form id="form-aluno" class="space-y-3">
+        <input type="hidden" id="aluno-id" />
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs uppercase text-zinc-400 mb-1 block">Nome *</label><input id="aluno-nome" required class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" /></div>
+          <div><label class="text-xs uppercase text-zinc-400 mb-1 block">WhatsApp *</label><input id="aluno-whatsapp" placeholder="55629..." class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" /></div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs uppercase text-zinc-400 mb-1 block">Email</label><input id="aluno-email" type="email" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" /></div>
+          <div><label class="text-xs uppercase text-zinc-400 mb-1 block">CPF/CNPJ</label><input id="aluno-cpfcnpj" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" /></div>
+        </div>
+
+        <div class="border-t border-zinc-800 pt-3">
+          <div class="text-xs uppercase text-zinc-500 mb-2">📚 Matrícula (mentoria + valor + vencimento)</div>
+          <div class="grid grid-cols-3 gap-3">
+            <div><label class="text-xs text-zinc-400 mb-1 block">Mentoria *</label>
+              <select id="aluno-mentoria" required class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm"><option value="">—</option></select></div>
+            <div><label class="text-xs text-zinc-400 mb-1 block">Valor R$ *</label><input id="aluno-valor" type="number" min="0" step="0.01" required class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" /></div>
+            <div><label class="text-xs text-zinc-400 mb-1 block">Dia venc. *</label><input id="aluno-dia" type="number" min="1" max="28" value="10" required class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" /></div>
+          </div>
+        </div>
+
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="hide('modal-aluno')" class="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-2 rounded-lg text-sm">CANCELAR</button>
+          <button type="submit" id="btn-aluno-salvar" class="flex-1 bg-lime-400 hover:bg-lime-300 text-zinc-950 font-semibold py-2 rounded-lg text-sm">SALVAR</button>
+        </div>
+        <div id="aluno-resultado" class="text-xs hidden"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============= MODAL GERENCIAR MENTORIAS ============= -->
+  <div id="modal-mentorias" class="hidden fixed inset-0 z-50 items-center justify-center px-4 modal-overlay bg-black/60">
+    <div class="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-xl max-h-[90vh] overflow-y-auto scroll-thin">
+      <div class="flex justify-between items-start mb-4">
+        <h2 class="text-lg font-semibold text-lime-400">📚 Mentorias (catálogo)</h2>
+        <button onclick="hide('modal-mentorias')" class="text-zinc-500 hover:text-zinc-200 text-2xl leading-none">×</button>
+      </div>
+      <div id="lista-mentorias" class="space-y-2 mb-4"></div>
+      <form id="form-mentoria" class="border-t border-zinc-800 pt-3 space-y-3">
+        <div class="text-xs uppercase text-zinc-500">+ Adicionar mentoria</div>
+        <div class="grid grid-cols-2 gap-3">
+          <input id="mentoria-nome" placeholder="Nome (ex: Família TributárIA)" required class="bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" />
+          <input id="mentoria-valor" type="number" min="0" step="0.01" placeholder="Valor padrão R$" required class="bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <button type="submit" class="w-full bg-lime-400 hover:bg-lime-300 text-zinc-950 font-semibold py-2 rounded-lg text-sm">ADICIONAR</button>
+      </form>
     </div>
   </div>
 
@@ -439,8 +554,189 @@
     });
     function atualizarRelogio() { el('footer-time').textContent = new Date().toLocaleTimeString('pt-BR'); }
     setInterval(atualizarRelogio, 1000); atualizarRelogio();
+
+    // =========================================================
+    // ===== TABS: Leads / Mentorados / Financeiro =============
+    // =========================================================
+    let _tabAtual = 'leads';
+    function trocarTab(tab) {
+      _tabAtual = tab;
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        const ativo = b.dataset.tab === tab;
+        b.classList.toggle('border-lime-400', ativo);
+        b.classList.toggle('text-lime-400', ativo);
+        b.classList.toggle('font-semibold', ativo);
+        b.classList.toggle('border-transparent', !ativo);
+        b.classList.toggle('text-zinc-400', !ativo);
+      });
+      ['leads','mentorados','financeiro'].forEach(t => {
+        const v = el('view-' + t);
+        if (!v) return;
+        v.classList.toggle('hidden', t !== tab);
+        if (t === tab) v.classList.add('flex');
+        else v.classList.remove('flex');
+      });
+      if (tab === 'mentorados') carregarMentorados();
+      if (tab === 'financeiro') carregarFinanceiro();
+    }
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.addEventListener('click', () => trocarTab(b.dataset.tab));
+    });
+
+    // =========================================================
+    // ===== MENTORADOS ========================================
+    // =========================================================
+    async function carregarMentorados() {
+      try {
+        const { alunos } = await api('/api/alunos');
+        const tbody = el('tbl-alunos');
+        const ativos = alunos.filter(a => a.status === 'ativo').length;
+        const inad = alunos.filter(a => Number(a.cobrancas_atrasadas) > 0).length;
+        const totalPago = alunos.reduce((s,a) => s + Number(a.total_pago || 0), 0);
+        el('m-total').textContent = ativos;
+        el('m-inad').textContent = inad;
+        el('m-pago').textContent = 'R$ ' + totalPago.toLocaleString('pt-BR', {minimumFractionDigits:2});
+
+        if (alunos.length === 0) {
+          el('alunos-vazio').classList.remove('hidden');
+          tbody.innerHTML = '';
+          return;
+        }
+        el('alunos-vazio').classList.add('hidden');
+        tbody.innerHTML = alunos.map(a => {
+          const mts = a.matriculas || [];
+          const ms = mts.map(m => `<span style="color:${m.mentoria_cor || '#a3a3a3'}">${escape(m.mentoria_nome)}</span>`).join(', ') || '<span class="text-zinc-600">—</span>';
+          const valorTotal = mts.reduce((s,m) => s + Number(m.valor || 0), 0);
+          const venc = mts[0]?.dia_vencimento ? `dia ${mts[0].dia_vencimento}` : '—';
+          const statusCor = { ativo:'text-lime-400', inadimplente:'text-red-400', pausado:'text-yellow-400', cancelado:'text-zinc-500' }[a.status] || '';
+          const ehAtrasado = Number(a.cobrancas_atrasadas) > 0;
+          return `<tr class="hover:bg-zinc-900/50 cursor-pointer" onclick="editarAluno('${a.id}')">
+            <td class="py-3 px-2 font-medium">${escape(a.nome)}</td>
+            <td class="py-3 px-2 text-zinc-400">${escape(a.whatsapp || '—')}</td>
+            <td class="py-3 px-2 text-xs">${ms}</td>
+            <td class="py-3 px-2 text-right">${valorTotal > 0 ? 'R$ ' + valorTotal.toLocaleString('pt-BR', {minimumFractionDigits:2}) : '—'}</td>
+            <td class="py-3 px-2 text-center text-zinc-400">${venc}</td>
+            <td class="py-3 px-2 text-center"><span class="${statusCor}">${a.status}${ehAtrasado ? ' 🔴' : ''}</span></td>
+            <td class="py-3 px-2 text-right text-zinc-400">R$ ${Number(a.total_pago).toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
+          </tr>`;
+        }).join('');
+      } catch (e) { console.error('[mentorados]', e.message); }
+    }
+
+    async function abrirModalAluno(alunoId) {
+      el('aluno-id').value = alunoId || '';
+      el('aluno-modal-titulo').textContent = alunoId ? 'Editar mentorado' : 'Novo mentorado';
+      el('form-aluno').reset();
+      // popula select de mentorias
+      const { mentorias } = await api('/api/mentorias');
+      const sel = el('aluno-mentoria');
+      sel.innerHTML = '<option value="">—</option>' +
+        mentorias.filter(m => m.ativa).map(m =>
+          `<option value="${m.id}" data-valor="${m.valor_padrao}">${escape(m.nome)} (R$ ${Number(m.valor_padrao).toLocaleString('pt-BR')})</option>`
+        ).join('');
+      sel.addEventListener('change', () => {
+        const opt = sel.options[sel.selectedIndex];
+        if (opt && opt.dataset.valor && !el('aluno-valor').value) el('aluno-valor').value = opt.dataset.valor;
+      });
+      if (alunoId) {
+        const { aluno, matriculas } = await api('/api/alunos/' + alunoId);
+        el('aluno-nome').value = aluno.nome;
+        el('aluno-whatsapp').value = aluno.whatsapp || '';
+        el('aluno-email').value = aluno.email || '';
+        el('aluno-cpfcnpj').value = aluno.cpf_cnpj || '';
+        if (matriculas[0]) {
+          el('aluno-mentoria').value = matriculas[0].mentoria_id;
+          el('aluno-valor').value = matriculas[0].valor;
+          el('aluno-dia').value = matriculas[0].dia_vencimento;
+        }
+      }
+      show('modal-aluno');
+    }
+    window.editarAluno = abrirModalAluno;
+
+    el('btn-novo-aluno')?.addEventListener('click', () => abrirModalAluno(null));
+
+    el('form-aluno').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = el('btn-aluno-salvar'); const out = el('aluno-resultado');
+      btn.disabled = true; btn.textContent = 'SALVANDO...';
+      try {
+        const alunoId = el('aluno-id').value;
+        const dadosAluno = {
+          nome: el('aluno-nome').value.trim(),
+          whatsapp: el('aluno-whatsapp').value.trim() || undefined,
+          email: el('aluno-email').value.trim() || undefined,
+          cpf_cnpj: el('aluno-cpfcnpj').value.trim() || undefined,
+        };
+        let aId = alunoId;
+        if (alunoId) {
+          await api('/api/alunos/' + alunoId, { method:'PATCH', body: JSON.stringify(dadosAluno) });
+        } else {
+          const r = await api('/api/alunos', { method:'POST', body: JSON.stringify(dadosAluno) });
+          aId = r.aluno.id;
+        }
+        // Cria matrícula nova (se preencheu)
+        const mentoriaId = el('aluno-mentoria').value;
+        const valor = Number(el('aluno-valor').value);
+        const dia = Number(el('aluno-dia').value);
+        if (mentoriaId && valor && dia) {
+          if (!alunoId) { // só cria matrícula se for aluno NOVO (edição matrícula virá em fase própria)
+            await api('/api/matriculas', { method:'POST', body: JSON.stringify({
+              aluno_id: aId, mentoria_id: mentoriaId, valor, dia_vencimento: dia,
+            })});
+          }
+        }
+        out.classList.remove('hidden'); out.innerHTML = '<span class="text-lime-400">✓ Salvo!</span>';
+        await carregarMentorados();
+        setTimeout(() => hide('modal-aluno'), 600);
+      } catch (e) {
+        out.classList.remove('hidden'); out.innerHTML = `<span class="text-red-400">✗ ${e.message}</span>`;
+      } finally { btn.disabled = false; btn.textContent = 'SALVAR'; }
+    });
+
+    // ===== Gerenciar mentorias =====
+    async function carregarListaMentorias() {
+      const { mentorias } = await api('/api/mentorias');
+      el('lista-mentorias').innerHTML = mentorias.length ? mentorias.map(m => `
+        <div class="flex justify-between items-center bg-zinc-950 border border-zinc-800 rounded-lg p-3">
+          <div>
+            <div class="font-medium text-zinc-100" style="color:${m.cor || '#fff'}">${escape(m.nome)}</div>
+            <div class="text-xs text-zinc-500">R$ ${Number(m.valor_padrao).toLocaleString('pt-BR', {minimumFractionDigits:2})}/${m.frequencia} • ${m.matriculas_ativas} aluno(s)</div>
+          </div>
+          <div class="text-xs ${m.ativa ? 'text-lime-400' : 'text-zinc-500'}">${m.ativa ? 'ativa' : 'inativa'}</div>
+        </div>`).join('') : '<div class="text-center text-zinc-500 text-sm py-4">Nenhuma mentoria cadastrada.</div>';
+    }
+    el('btn-mentorias')?.addEventListener('click', async () => {
+      await carregarListaMentorias();
+      show('modal-mentorias');
+    });
+    el('form-mentoria').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        await api('/api/mentorias', { method:'POST', body: JSON.stringify({
+          nome: el('mentoria-nome').value.trim(),
+          valor_padrao: Number(el('mentoria-valor').value),
+        })});
+        el('form-mentoria').reset();
+        await carregarListaMentorias();
+      } catch (e) { alert('Erro: ' + e.message); }
+    });
+
+    // =========================================================
+    // ===== FINANCEIRO ========================================
+    // =========================================================
+    async function carregarFinanceiro() {
+      try {
+        const { resumo } = await api('/api/cobrancas/_resumo');
+        el('f-faturado').textContent = 'R$ ' + Number(resumo.faturado_mes).toLocaleString('pt-BR', {minimumFractionDigits:2});
+        el('f-inad').textContent = 'R$ ' + Number(resumo.inadimplencia_valor).toLocaleString('pt-BR', {minimumFractionDigits:2});
+        el('f-prox').textContent = 'R$ ' + Number(resumo.proximos_7d).toLocaleString('pt-BR', {minimumFractionDigits:2});
+        el('f-atrasadas').textContent = resumo.atrasadas;
+      } catch (e) { console.error('[financeiro]', e.message); }
+    }
+
     if (getToken()) mostrarDashboard(); else el('screen-login').classList.remove('hidden');
-    setInterval(() => { if (getToken()) carregarLeads(); }, 10000);
+    setInterval(() => { if (getToken() && _tabAtual === 'leads') carregarLeads(); }, 10000);
   </script>
 </body>
 </html>

@@ -12,6 +12,10 @@ import { leadsRouter } from './routes/leads.js';
 import { messagesRouter } from './routes/messages.js';
 import { webhookRouter } from './routes/webhook.js';
 import { devRouter } from './routes/dev.js';
+import { mentoriasRouter } from './routes/mentorias.js';
+import { alunosRouter } from './routes/alunos.js';
+import { matriculasRouter } from './routes/matriculas.js';
+import { cobrancasRouter } from './routes/cobrancas.js';
 import { pool, autoMigrate, autoSeed } from './db/connection.js';
 import { hashSenha } from './auth/hash.js';
 
@@ -71,6 +75,10 @@ app.use('/api/auth', authRouter);
 app.use('/api/leads', leadsRouter);
 app.use('/api/messages', messagesRouter);
 app.use('/api/dev', devRouter);
+app.use('/api/mentorias', mentoriasRouter);
+app.use('/api/alunos', alunosRouter);
+app.use('/api/matriculas', matriculasRouter);
+app.use('/api/cobrancas', cobrancasRouter);
 app.use('/webhook', webhookRouter);
 
 app.use(express.static(publicDir));
