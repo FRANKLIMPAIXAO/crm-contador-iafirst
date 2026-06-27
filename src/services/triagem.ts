@@ -151,14 +151,20 @@ export async function triarLead(leadId: string, orgId: string, textoNovo: string
 
   if (botHabilitado && evolution.isConfigured() && resultado.sugestao_resposta) {
     try {
-      const countAll = await queryOne<{ c: string }>(
-        `SELECT count(*)::text as c FROM messages WHERE lead_id = $1`,
-        [leadId],
-      );
-      const ehPrimeira = Number(countAll?.c ?? 0) <= 1;
       const passouQualif = (ordemQualif[resultado.qualif] || 0) >= (ordemQualif[botMinQualif] || 2);
 
-      if (ehPrimeira && passouQualif) {
+      // Humano-tomou-conta: se houve resposta MANUAL recente (via painel CRM),
+      // bot fica quieto pra não atrapalhar. Configurável via BOT_PAUSA_APOS_HUMANO_MIN (default 60min).
+      const pausaMin = Number(process.env.BOT_PAUSA_APOS_HUMANO_MIN || 60);
+      const humanoAssumiu = await queryOne<{ c: string }>(
+        `SELECT count(*)::text as c FROM activities
+         WHERE lead_id = $1 AND tipo = 'mensagem_enviada'
+         AND created_at > NOW() - INTERVAL '${pausaMin} minutes'`,
+        [leadId],
+      );
+      const humanoRecente = Number(humanoAssumiu?.c ?? 0) > 0;
+
+      if (passouQualif && !humanoRecente) {
         const leadData = await queryOne<{ wa_jid: string }>(
           `SELECT wa_jid FROM leads WHERE id = $1`,
           [leadId],
