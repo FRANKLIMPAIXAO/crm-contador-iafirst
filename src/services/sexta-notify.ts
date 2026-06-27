@@ -4,7 +4,10 @@
 import { config } from '../config.js';
 
 export interface AlertaPayload {
-  tipo: 'lead_novo_quente' | 'lead_quente_respondeu' | 'lead_novo';
+  tipo:
+    | 'lead_novo'
+    | 'lead_novo_frio' | 'lead_novo_morno' | 'lead_novo_quente'
+    | 'lead_frio_respondeu' | 'lead_morno_respondeu' | 'lead_quente_respondeu';
   lead: {
     id: string;
     nome: string | null;
@@ -21,6 +24,7 @@ export interface AlertaPayload {
     sugestao_resposta?: string;
   };
   url_crm: string;
+  respondido_auto?: boolean;
 }
 
 export function isConfigured(): boolean {

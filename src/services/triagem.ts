@@ -6,6 +6,7 @@ import { getClient, isConfigured } from './anthropic.js';
 import { config } from '../config.js';
 import { query, queryOne } from '../db/connection.js';
 import { notificar, urlCrmLead } from './sexta-notify.js';
+import * as evolution from './evolution.js';
 
 export interface TriagemResultado {
   produto_interesse: 'familia' | 'iafirst' | 'pacservice' | 'contachat' | 'indefinido';
@@ -136,8 +137,72 @@ export async function triarLead(leadId: string, orgId: string, textoNovo: string
     [orgId, leadId, JSON.stringify(resultado)],
   );
 
-  // ===== Notifica SEXTA se for lead QUENTE =====
-  if (resultado.qualif === 'quente') {
+  // ===== BOT AUTO-RESPONDER =====
+  // Envia sugestão IA direto pro WhatsApp do lead se:
+  //   1. BOT_AUTO_RESPONDER=true (default true)
+  //   2. ehNovo (primeira mensagem do lead — evita loop)
+  //   3. qualif >= BOT_AUTO_RESPONDER_MIN_QUALIF (default morno, frio nunca)
+  //   4. Sugestão de resposta existe
+  //   5. Evolution configurado
+  const ordemQualif: Record<string, number> = { frio: 1, morno: 2, quente: 3 };
+  const botHabilitado = (process.env.BOT_AUTO_RESPONDER || 'true').toLowerCase() === 'true';
+  const botMinQualif = (process.env.BOT_AUTO_RESPONDER_MIN_QUALIF || 'morno').toLowerCase();
+  let respondidoAuto = false;
+
+  if (botHabilitado && evolution.isConfigured() && resultado.sugestao_resposta) {
+    try {
+      const countAll = await queryOne<{ c: string }>(
+        `SELECT count(*)::text as c FROM messages WHERE lead_id = $1`,
+        [leadId],
+      );
+      const ehPrimeira = Number(countAll?.c ?? 0) <= 1;
+      const passouQualif = (ordemQualif[resultado.qualif] || 0) >= (ordemQualif[botMinQualif] || 2);
+
+      if (ehPrimeira && passouQualif) {
+        const leadData = await queryOne<{ wa_jid: string }>(
+          `SELECT wa_jid FROM leads WHERE id = $1`,
+          [leadId],
+        );
+        if (leadData?.wa_jid) {
+          // Delay 2-4s aleatório pra parecer humano
+          const delay = 2000 + Math.floor(Math.random() * 2000);
+          await new Promise((r) => setTimeout(r, delay));
+
+          const r = await evolution.sendText({
+            numero: leadData.wa_jid,
+            texto: resultado.sugestao_resposta,
+          });
+
+          if (r.ok) {
+            respondidoAuto = true;
+            // Salva como mensagem 'out' no banco
+            await queryOne(
+              `INSERT INTO messages (org_id, lead_id, direcao, corpo, wa_message_id, status)
+               VALUES ($1, $2, 'out', $3, $4, 'sent')`,
+              [orgId, leadId, resultado.sugestao_resposta, r.wa_message_id || null],
+            );
+            // Activity
+            await queryOne(
+              `INSERT INTO activities (org_id, lead_id, tipo, conteudo)
+               VALUES ($1, $2, 'resposta_automatica', $3)`,
+              [orgId, leadId, JSON.stringify({ resposta: resultado.sugestao_resposta, qualif: resultado.qualif })],
+            );
+            console.log(`[bot] ✅ auto-respondeu lead ${leadId} (${resultado.qualif})`);
+          } else {
+            console.warn('[bot] auto-resposta falhou:', r.erro);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[bot] erro auto-responder:', err instanceof Error ? err.message : err);
+    }
+  }
+
+  // ===== Notifica SEXTA pra todos exceto FRIO (frio = silencioso, não vira spam) =====
+  // Override via env: SEXTA_NOTIFY_MIN_QUALIF=frio|morno|quente (default 'morno')
+  const minQualif = (process.env.SEXTA_NOTIFY_MIN_QUALIF || 'morno').toLowerCase();
+  const passou = (ordemQualif[resultado.qualif] || 0) >= (ordemQualif[minQualif] || 2);
+  if (passou) {
     try {
       const lead = await queryOne<{
         nome: string | null; wa_jid: string; stage: string;
@@ -149,8 +214,12 @@ export async function triarLead(leadId: string, orgId: string, textoNovo: string
           [leadId],
         );
         const ehNovo = Number(count?.c ?? 0) <= 1;
+        // Tipo dinâmico: lead_novo_<qualif> ou lead_<qualif>_respondeu
+        const tipoEvento = ehNovo
+          ? (`lead_novo_${resultado.qualif}` as const)
+          : (`lead_${resultado.qualif}_respondeu` as const);
         await notificar({
-          tipo: ehNovo ? 'lead_novo_quente' : 'lead_quente_respondeu',
+          tipo: tipoEvento as never,
           lead: {
             id: leadId,
             nome: lead.nome,
@@ -167,7 +236,8 @@ export async function triarLead(leadId: string, orgId: string, textoNovo: string
             sugestao_resposta: resultado.sugestao_resposta,
           },
           url_crm: urlCrmLead(leadId),
-        });
+          respondido_auto: respondidoAuto,
+        } as never);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
