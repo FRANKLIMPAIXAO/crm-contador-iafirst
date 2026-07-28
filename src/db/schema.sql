@@ -395,10 +395,20 @@ CREATE TABLE IF NOT EXISTS prospector_config (
   delay_random_segundos     int NOT NULL DEFAULT 240,
   segmentos_ativos          text[] DEFAULT '{}',
   cidade_padrao             text,
-  assinatura_apresentacao   text,                        -- "Franklim, contador de oficinas em Aparecida"
+  assinatura_apresentacao   text,                        -- "A Contadora da Oficina"
   assinatura_crc            text,
+  assinatura_nome           text,                        -- "Ana Paixão" (pessoa que assina)
+  assinatura_escritorio     text,                        -- override do org.nome
+  assinatura_whatsapp       text,                        -- 55DDDNNNNNNNNN (fallback: instance Evolution)
+  cores_jsonb               jsonb,                       -- { primaria, secundaria, texto, fundo }
   created_at                timestamptz NOT NULL DEFAULT now(),
   updated_at                timestamptz NOT NULL DEFAULT now()
 );
+
+-- Colunas novas (idempotente pra bancos já criados)
+ALTER TABLE prospector_config ADD COLUMN IF NOT EXISTS assinatura_nome text;
+ALTER TABLE prospector_config ADD COLUMN IF NOT EXISTS assinatura_escritorio text;
+ALTER TABLE prospector_config ADD COLUMN IF NOT EXISTS assinatura_whatsapp text;
+ALTER TABLE prospector_config ADD COLUMN IF NOT EXISTS cores_jsonb jsonb;
 DROP TRIGGER IF EXISTS trg_prospector_config_updated ON prospector_config;
 CREATE TRIGGER trg_prospector_config_updated BEFORE UPDATE ON prospector_config FOR EACH ROW EXECUTE FUNCTION set_updated_at();

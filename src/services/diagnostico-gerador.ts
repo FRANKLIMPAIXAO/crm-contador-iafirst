@@ -6,6 +6,13 @@ import { config } from '../config.js';
 
 const MODELO = 'claude-sonnet-4-5';
 
+export type CoresTema = {
+  primaria?: string;    // ex '#D4AF37' — botões, títulos destaque
+  secundaria?: string;  // ex '#0F172A' — fundo escuro
+  texto?: string;       // ex '#F1F5F9' — texto principal
+  fundo?: string;       // ex '#020617' — fundo do body
+};
+
 export type DiagnosticoInput = {
   lead: {
     nome: string;
@@ -19,10 +26,11 @@ export type DiagnosticoInput = {
   contador: {
     nome: string;
     escritorio?: string;
-    apresentacao: string;    // "Contador especialista em oficinas"
+    apresentacao: string;    // "A Contadora da Oficina"
     crc?: string;
     whatsapp: string;        // 55DDDnnnnnnnnn
   };
+  cores?: CoresTema;
   url_publica: string;       // pra usar dentro dos meta tags OG
 };
 
@@ -63,6 +71,12 @@ export async function gerarDiagnosticoHtml(input: DiagnosticoInput): Promise<str
 
 function montarPrompt(input: DiagnosticoInput): string {
   const { lead, contador, url_publica } = input;
+  const cores = {
+    primaria: input.cores?.primaria || '#D4AF37',
+    secundaria: input.cores?.secundaria || '#0F172A',
+    texto: input.cores?.texto || '#F1F5F9',
+    fundo: input.cores?.fundo || '#020617',
+  };
   // Postgres NUMERIC vira string via node-pg — force Number antes de .toFixed
   const notaNum = lead.nota_google != null ? Number(lead.nota_google) : null;
   const nota = notaNum != null && !isNaN(notaNum) ? `${notaNum.toFixed(1)}★` : 'sem nota';
@@ -106,7 +120,12 @@ ${url_publica}
 6. Página responsiva 360→1440px, sem rolagem horizontal.
 7. HTML autocontido: CSS inline no <style>, sem JS, sem imagens externas (pode usar emoji e SVG inline).
 8. Fonte: system-ui, -apple-system, sans-serif (sem Google Fonts — bloqueia offline).
-9. Cores: paleta profissional escura ou clara (à sua escolha), consistente e legível.
+9. PALETA DE CORES OBRIGATÓRIA (não invente, use EXATAMENTE estes hex):
+   - Cor primária (destaques, botões, títulos importantes): ${cores.primaria}
+   - Cor secundária (fundos escuros de seções, cards): ${cores.secundaria}
+   - Cor de texto principal: ${cores.texto}
+   - Cor de fundo do body: ${cores.fundo}
+   Use gradientes suaves entre primária e uma versão mais escura da primária pros CTAs. O botão de WhatsApp deve destacar-se com a cor primária + alto contraste.
 
 ## Biblioteca de dores por segmento (use como base, adapte)
 - **Oficinas mecânicas**: separar peça (mercadoria/ICMS) de serviço (mão de obra/ISS); ICMS-ST de autopeças (peça já veio tributada); Simples Anexo I × III via Fator R; crédito ICMS no Presumido/Real; INSS mecânicos.

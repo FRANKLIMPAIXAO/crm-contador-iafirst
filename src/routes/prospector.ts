@@ -178,7 +178,16 @@ prospectorRouter.post('/diagnosticos/:leadId', async (req, res, next) => {
     const cfg = await queryOne<{
       assinatura_apresentacao: string | null;
       assinatura_crc: string | null;
-    }>(`SELECT assinatura_apresentacao, assinatura_crc FROM prospector_config WHERE org_id = $1`, [orgId]);
+      assinatura_nome: string | null;
+      assinatura_escritorio: string | null;
+      assinatura_whatsapp: string | null;
+      cores_jsonb: { primaria?: string; secundaria?: string; texto?: string; fundo?: string } | null;
+    }>(
+      `SELECT assinatura_apresentacao, assinatura_crc, assinatura_nome,
+              assinatura_escritorio, assinatura_whatsapp, cores_jsonb
+         FROM prospector_config WHERE org_id = $1`,
+      [orgId],
+    );
 
     const org = await queryOne<{ nome: string }>(
       `SELECT nome FROM orgs WHERE id = $1`, [orgId],
@@ -187,12 +196,12 @@ prospectorRouter.post('/diagnosticos/:leadId', async (req, res, next) => {
       `SELECT nome FROM users WHERE id = $1`, [getUserId(req)],
     );
 
-    // WhatsApp do contador (Evolution instance ativa da org)
+    // WhatsApp do contador — prioriza config, cai pra Evolution instance
     const instance = await queryOne<{ numero: string }>(
       `SELECT numero FROM instances WHERE org_id = $1 AND numero IS NOT NULL LIMIT 1`,
       [orgId],
     );
-    const waContador = instance?.numero || '5500000000000';
+    const waContador = cfg?.assinatura_whatsapp || instance?.numero || '5500000000000';
 
     const slug = gerarSlug(lead.nome, lead.cidade);
     const urlPub = urlPublica(slug);
@@ -212,12 +221,13 @@ prospectorRouter.post('/diagnosticos/:leadId', async (req, res, next) => {
           porte: lead.porte,
         },
         contador: {
-          nome: user?.nome || 'Contador',
-          escritorio: org?.nome,
+          nome: cfg?.assinatura_nome || user?.nome || 'Contador',
+          escritorio: cfg?.assinatura_escritorio || org?.nome,
           apresentacao: cfg?.assinatura_apresentacao || `Contador especialista em ${lead.segmento}`,
           crc: cfg?.assinatura_crc || undefined,
           whatsapp: waContador,
         },
+        cores: cfg?.cores_jsonb || undefined,
         url_publica: urlPub,
       });
     } catch (err: any) {
@@ -396,6 +406,15 @@ const configSchema = z.object({
   cidade_padrao: z.string().optional(),
   assinatura_apresentacao: z.string().optional(),
   assinatura_crc: z.string().optional(),
+  assinatura_nome: z.string().optional(),
+  assinatura_escritorio: z.string().optional(),
+  assinatura_whatsapp: z.string().optional(),
+  cores_jsonb: z.object({
+    primaria: z.string().optional(),
+    secundaria: z.string().optional(),
+    texto: z.string().optional(),
+    fundo: z.string().optional(),
+  }).optional(),
 });
 
 prospectorRouter.get('/config', async (req, res, next) => {
@@ -426,7 +445,9 @@ prospectorRouter.patch('/config', async (req, res, next) => {
     const vals: unknown[] = [];
     let i = 1;
     for (const [k, v] of Object.entries(input)) {
-      campos.push(`${k} = $${i}`); vals.push(v); i++;
+      // JSONB precisa ser string pro node-pg (senão vira erro de tipo)
+      const val = (k === 'cores_jsonb' && v && typeof v === 'object') ? JSON.stringify(v) : v;
+      campos.push(`${k} = $${i}`); vals.push(val); i++;
     }
     if (!campos.length) { res.status(400).json({ erro: 'nada pra atualizar' }); return; }
     vals.push(orgId);
