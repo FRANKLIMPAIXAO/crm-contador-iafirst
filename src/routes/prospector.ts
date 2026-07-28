@@ -199,6 +199,7 @@ prospectorRouter.post('/diagnosticos/:leadId', async (req, res, next) => {
 
     let html: string;
     let modelo = 'claude-sonnet-4-5';
+    let erroIa: string | null = null;
     try {
       html = await gerarDiagnosticoHtml({
         lead: {
@@ -220,7 +221,8 @@ prospectorRouter.post('/diagnosticos/:leadId', async (req, res, next) => {
         url_publica: urlPub,
       });
     } catch (err: any) {
-      console.error('[prospector] gerador IA falhou, salvando fallback:', err.message);
+      erroIa = String(err?.message || err).slice(0, 500);
+      console.error('[prospector] gerador IA falhou:', erroIa);
       html = fallbackHtml(lead);
       modelo = 'fallback-erro';
     }
@@ -237,7 +239,7 @@ prospectorRouter.post('/diagnosticos/:leadId', async (req, res, next) => {
       [orgId, leadId, slug, html, lead.segmento, lead.cidade, modelo],
     );
 
-    res.status(201).json({ diagnostico: diag, url_publica: urlPub, modelo });
+    res.status(201).json({ diagnostico: diag, url_publica: urlPub, modelo, erro_ia: erroIa });
   } catch (err) {
     next(err);
   }
