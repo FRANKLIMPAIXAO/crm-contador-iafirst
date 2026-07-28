@@ -18,6 +18,7 @@ import { matriculasRouter } from './routes/matriculas.js';
 import { cobrancasRouter } from './routes/cobrancas.js';
 import { prospectorRouter } from './routes/prospector.js';
 import { diagnosticoPublicoRouter } from './routes/diagnostico-publico.js';
+import { usersRouter } from './routes/users.js';
 import { pool, autoMigrate, autoSeed } from './db/connection.js';
 import { hashSenha } from './auth/hash.js';
 
@@ -104,6 +105,7 @@ app.use('/api/alunos', alunosRouter);
 app.use('/api/matriculas', matriculasRouter);
 app.use('/api/cobrancas', cobrancasRouter);
 app.use('/api/prospector', prospectorRouter);
+app.use('/api/users', usersRouter);
 app.use('/d', diagnosticoPublicoRouter);
 app.use('/webhook', webhookRouter);
 
