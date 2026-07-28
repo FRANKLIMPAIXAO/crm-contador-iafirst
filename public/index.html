@@ -800,7 +800,11 @@
         // Buscas recentes chips
         el('p-buscas-recentes').innerHTML = (buscas || []).slice(0,4).map(b => {
           const cor = b.status === 'concluida' ? 'lime' : b.status === 'rodando' ? 'yellow' : b.status === 'erro' ? 'red' : 'zinc';
-          return `<span class="px-2 py-1 rounded bg-${cor}-500/10 text-${cor}-400 border border-${cor}-500/30" title="${b.leads_encontrados||0} encontrados, ${b.leads_novos||0} novos">${escapeHtml(b.segmento)} · ${b.status}</span>`;
+          const tip = b.status === 'erro'
+            ? (b.erro || 'erro desconhecido')
+            : `${b.leads_encontrados||0} encontrados, ${b.leads_novos||0} novos`;
+          const click = b.status === 'erro' ? `onclick="alert('ERRO DA BUSCA:\\n\\n' + ${JSON.stringify(b.erro || 'erro desconhecido')})" style="cursor:pointer"` : '';
+          return `<span ${click} class="px-2 py-1 rounded bg-${cor}-500/10 text-${cor}-400 border border-${cor}-500/30" title="${escapeAttr(tip)}">${escapeHtml(b.segmento)} · ${b.status}</span>`;
         }).join('');
 
         // Distribui leads no kanban
