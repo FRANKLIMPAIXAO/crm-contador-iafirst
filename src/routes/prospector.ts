@@ -329,9 +329,14 @@ prospectorRouter.post('/abordar/:leadId', async (req, res, next) => {
 
     const cfg = await queryOne<{
       assinatura_apresentacao: string | null;
-    }>(`SELECT assinatura_apresentacao FROM prospector_config WHERE org_id = $1`, [orgId]);
+      assinatura_nome: string | null;
+      assinatura_escritorio: string | null;
+    }>(
+      `SELECT assinatura_apresentacao, assinatura_nome, assinatura_escritorio
+         FROM prospector_config WHERE org_id = $1`,
+      [orgId],
+    );
 
-    const assinatura = cfg?.assinatura_apresentacao || 'Contador especializado no seu segmento';
     const url = urlPublica(diag.slug);
 
     const mensagem = input.mensagem_custom || montarMensagem({
@@ -339,7 +344,9 @@ prospectorRouter.post('/abordar/:leadId', async (req, res, next) => {
       segmento: lead.segmento,
       cidade: lead.cidade,
       nota: lead.nota_google,
-      assinatura,
+      nome_pessoa: cfg?.assinatura_nome || 'Contador',
+      apresentacao: cfg?.assinatura_apresentacao || `especialista em ${lead.segmento}`,
+      escritorio: cfg?.assinatura_escritorio || null,
       url_diagnostico: url,
     });
 
@@ -751,12 +758,17 @@ function montarMensagem(p: {
   segmento: string;
   cidade: string;
   nota: number | null;
-  assinatura: string;
+  nome_pessoa: string;         // "Ana Paixão"
+  apresentacao: string;         // "A Contadora da Oficina"
+  escritorio: string | null;    // "PAC Inteligência Tributária"
   url_diagnostico: string;
 }): string {
   const notaNum = p.nota != null ? Number(p.nota) : null;
-  const linhaNota = notaNum != null && !isNaN(notaNum) ? ` — ${notaNum.toFixed(1)}★, parabéns pelas avaliações` : '';
-  return `Oi, aqui é o ${p.assinatura}. Vi a ${p.nome_empresa} no Google${linhaNota} 👏
+  const linhaNota = notaNum != null && !isNaN(notaNum) ? ` — ${notaNum.toFixed(1)}★, parabéns pelas avaliações 👏` : '';
+  const contexto = p.escritorio
+    ? `${p.nome_pessoa}, ${p.apresentacao} — ${p.escritorio}`
+    : `${p.nome_pessoa}, ${p.apresentacao}`;
+  return `Oi, aqui é a ${contexto}. Vi a ${p.nome_empresa} no Google${linhaNota}
 
 Como trabalho com ${p.segmento} em ${p.cidade}, preparei um raio-x rápido dos pontos onde uma empresa como a sua costuma pagar imposto a mais.
 
