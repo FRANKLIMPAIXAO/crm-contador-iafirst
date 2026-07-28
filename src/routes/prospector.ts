@@ -733,7 +733,8 @@ function montarMensagem(p: {
   assinatura: string;
   url_diagnostico: string;
 }): string {
-  const linhaNota = p.nota ? ` — ${p.nota.toFixed(1)}★, parabéns pelas avaliações` : '';
+  const notaNum = p.nota != null ? Number(p.nota) : null;
+  const linhaNota = notaNum != null && !isNaN(notaNum) ? ` — ${notaNum.toFixed(1)}★, parabéns pelas avaliações` : '';
   return `Oi, aqui é o ${p.assinatura}. Vi a ${p.nome_empresa} no Google${linhaNota} 👏
 
 Como trabalho com ${p.segmento} em ${p.cidade}, preparei um raio-x rápido dos pontos onde uma empresa como a sua costuma pagar imposto a mais.

@@ -63,7 +63,9 @@ export async function gerarDiagnosticoHtml(input: DiagnosticoInput): Promise<str
 
 function montarPrompt(input: DiagnosticoInput): string {
   const { lead, contador, url_publica } = input;
-  const nota = lead.nota_google ? `${lead.nota_google.toFixed(1)}★` : 'sem nota';
+  // Postgres NUMERIC vira string via node-pg — force Number antes de .toFixed
+  const notaNum = lead.nota_google != null ? Number(lead.nota_google) : null;
+  const nota = notaNum != null && !isNaN(notaNum) ? `${notaNum.toFixed(1)}★` : 'sem nota';
   const avaliacoes = lead.avaliacoes_google ? `${lead.avaliacoes_google} avaliações` : 'poucas avaliações';
   const waMsg = encodeURIComponent(
     `Vim pela página de contabilidade para ${lead.segmento} e queria entender melhor`,
