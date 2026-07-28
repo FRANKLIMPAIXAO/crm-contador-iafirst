@@ -439,6 +439,163 @@ prospectorRouter.patch('/config', async (req, res, next) => {
 });
 
 // ============================================================
+// IMPORT LEGADO — recebe batch do prospector.db via HTTP autenticado
+// (evita expor Postgres pra internet — Fase 8.10)
+// ============================================================
+
+const legadoLeadSchema = z.object({
+  slug: z.string().optional(),
+  nome: z.string().min(1),
+  segmento: z.string().optional(),
+  cidade: z.string().optional(),
+  whatsapp: z.string().optional(),           // formato livre — normalizamos
+  email: z.string().email().optional().nullable(),
+  cnpj: z.string().optional().nullable(),
+  regime_atual: z.string().optional().nullable(),
+  porte: z.string().optional().nullable(),
+  nota_google: z.number().optional().nullable(),
+  avaliacoes_google: z.number().optional().nullable(),
+  gancho_contabil: z.string().optional().nullable(),
+  site: z.string().optional().nullable(),
+  status_legado: z.string().optional(),      // novo/diagnosticado/abordado/respondeu/fechado/descartado
+  diagnostico_html: z.string().optional(),   // HTML da página se existia
+});
+
+const legadoBatchSchema = z.object({
+  leads: z.array(legadoLeadSchema).min(1).max(200),
+});
+
+prospectorRouter.post('/importar-legado', async (req, res, next) => {
+  try {
+    const orgId = getOrgId(req);
+    const { leads } = legadoBatchSchema.parse(req.body);
+
+    const stageMap: Record<string, string> = {
+      novo: 'novo',
+      diagnosticado: 'qualificado',
+      abordado: 'proposta',
+      respondeu: 'negociacao',
+      fechado: 'fechado',
+      descartado: 'perdido',
+    };
+    const porteMap = (p?: string | null): string => {
+      if (!p) return 'indefinido';
+      const s = String(p).toLowerCase();
+      if (s.includes('peq')) return 'pequeno';
+      if (s.includes('méd') || s.includes('med')) return 'medio';
+      if (s.includes('gr')) return 'grande';
+      return 'indefinido';
+    };
+    const normWa = (raw?: string): string => {
+      const d = String(raw || '').replace(/\D/g, '');
+      if (d.length === 11) return '55' + d;
+      if (d.length === 13 && d.startsWith('55')) return d;
+      return '';
+    };
+
+    // 1 busca sintética por segmento+cidade — reusa via cache local
+    const buscaCache = new Map<string, string>();
+    async function getOuCriaBusca(segmento: string, cidade: string): Promise<string> {
+      const k = `${segmento}::${cidade}`;
+      if (buscaCache.has(k)) return buscaCache.get(k)!;
+      const existente = await queryOne<{ id: string }>(
+        `SELECT id FROM prospector_buscas
+          WHERE org_id = $1 AND segmento = $2 AND cidade = $3 AND motor = 'legado'
+          LIMIT 1`,
+        [orgId, segmento, cidade],
+      );
+      if (existente) { buscaCache.set(k, existente.id); return existente.id; }
+      const nova = await queryOne<{ id: string }>(
+        `INSERT INTO prospector_buscas (org_id, segmento, cidade, status, motor, iniciada_em, concluida_em)
+           VALUES ($1, $2, $3, 'concluida', 'legado', NOW(), NOW()) RETURNING id`,
+        [orgId, segmento, cidade],
+      );
+      buscaCache.set(k, nova!.id);
+      return nova!.id;
+    }
+
+    const stats = { inseridos: 0, atualizados: 0, diagnosticos: 0, erros: 0 };
+    const errosDetalhe: Array<{ nome: string; msg: string }> = [];
+
+    for (const l of leads) {
+      try {
+        const segmento = l.segmento || 'indefinido';
+        const cidade = l.cidade || 'Não informado';
+        const waJid = normWa(l.whatsapp) || `legado:${l.slug || l.nome.slice(0, 30)}`;
+        const stage = stageMap[l.status_legado || 'novo'] || 'novo';
+        const porte = porteMap(l.porte);
+
+        const buscaId = await getOuCriaBusca(segmento, cidade);
+
+        const existente = await queryOne<{ id: string }>(
+          `SELECT id FROM leads WHERE org_id = $1 AND wa_jid = $2 LIMIT 1`,
+          [orgId, waJid],
+        );
+
+        let leadId: string;
+        if (existente) {
+          await query(
+            `UPDATE leads SET
+               nome = COALESCE(nome, $1),
+               segmento = COALESCE(segmento, $2),
+               cidade = COALESCE(cidade, $3),
+               stage = CASE WHEN stage = 'novo' THEN $4::lead_stage ELSE stage END,
+               email = COALESCE(email, $5),
+               site = COALESCE(site, $6),
+               cnpj = COALESCE(cnpj, $7),
+               regime_atual = COALESCE(regime_atual, $8),
+               porte = COALESCE(porte, $9::prospector_porte),
+               nota_google = COALESCE(nota_google, $10),
+               avaliacoes_google = COALESCE(avaliacoes_google, $11),
+               gancho_contabil = COALESCE(gancho_contabil, $12),
+               prospector_busca_id = COALESCE(prospector_busca_id, $13),
+               origem = COALESCE(origem, 'prospector-legado')
+             WHERE id = $14`,
+            [l.nome, segmento, cidade, stage, l.email, l.site, l.cnpj, l.regime_atual,
+             porte, l.nota_google, l.avaliacoes_google, l.gancho_contabil, buscaId, existente.id],
+          );
+          leadId = existente.id;
+          stats.atualizados++;
+        } else {
+          const ins = await queryOne<{ id: string }>(
+            `INSERT INTO leads (
+               org_id, wa_jid, nome, origem, segmento, cidade, stage,
+               email, site, cnpj, regime_atual, porte,
+               nota_google, avaliacoes_google, gancho_contabil, prospector_busca_id
+             ) VALUES ($1, $2, $3, 'prospector-legado', $4, $5, $6::lead_stage,
+                       $7, $8, $9, $10, $11::prospector_porte, $12, $13, $14, $15)
+             RETURNING id`,
+            [orgId, waJid, l.nome, segmento, cidade, stage,
+             l.email, l.site, l.cnpj, l.regime_atual, porte,
+             l.nota_google, l.avaliacoes_google, l.gancho_contabil, buscaId],
+          );
+          leadId = ins!.id;
+          stats.inseridos++;
+        }
+
+        // Se veio diagnóstico HTML, salva/atualiza
+        if (l.diagnostico_html && l.slug) {
+          await query(
+            `INSERT INTO prospector_diagnosticos
+               (org_id, lead_id, slug, html_content, segmento, cidade, gerado_por_modelo)
+             VALUES ($1, $2, $3, $4, $5, $6, 'legado-html')
+             ON CONFLICT (slug) DO UPDATE SET
+               html_content = EXCLUDED.html_content, updated_at = NOW()`,
+            [orgId, leadId, l.slug, l.diagnostico_html, segmento, cidade],
+          );
+          stats.diagnosticos++;
+        }
+      } catch (e: any) {
+        stats.erros++;
+        errosDetalhe.push({ nome: l.nome, msg: e.message });
+      }
+    }
+
+    res.json({ ok: true, stats, erros: errosDetalhe.slice(0, 20) });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 // MÉTRICAS
 // ============================================================
 

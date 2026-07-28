@@ -11,11 +11,13 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
     "prospector:migrar-legado": "node scripts/migrar-prospector-legado.mjs",
+    "prospector:enviar-legado": "node scripts/enviar-leads-legado.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
     "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^13.0.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
