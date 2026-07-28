@@ -596,6 +596,60 @@ prospectorRouter.post('/importar-legado', async (req, res, next) => {
 });
 
 // ============================================================
+// LIMPEZA — corrige leads com nome bugado (JSON cru do displayName)
+// Bug antigo: p.displayName era { text, languageCode } e foi salvo inteiro.
+// ============================================================
+
+prospectorRouter.post('/limpar-nomes-bugados', async (req, res, next) => {
+  try {
+    const orgId = getOrgId(req);
+    const bugados = await query<{ id: string; nome: string }>(
+      `SELECT id, nome FROM leads
+        WHERE org_id = $1
+          AND (nome LIKE '{%text%' OR nome LIKE '[object%')`,
+      [orgId],
+    );
+    let corrigidos = 0;
+    for (const l of bugados) {
+      let novoNome = l.nome;
+      // Tenta parse JSON
+      try {
+        const obj = JSON.parse(l.nome);
+        if (obj && typeof obj === 'object' && typeof obj.text === 'string') {
+          novoNome = obj.text;
+        }
+      } catch {
+        // Regex fallback pro caso do JSON estar truncado tipo {"text":"Nome","lang...
+        const m = l.nome.match(/"text"\s*:\s*"([^"]+)"/);
+        if (m && m[1]) novoNome = m[1];
+      }
+      if (novoNome !== l.nome) {
+        await query(`UPDATE leads SET nome = $1 WHERE id = $2`, [novoNome, l.id]);
+        corrigidos++;
+      }
+    }
+    res.json({ ok: true, encontrados: bugados.length, corrigidos });
+  } catch (err) { next(err); }
+});
+
+// DELETE leads de uma busca inteira (opcional — pra recomeçar do zero)
+prospectorRouter.delete('/buscas/:id/leads', async (req, res, next) => {
+  try {
+    const orgId = getOrgId(req);
+    const r = await queryOne<{ id: string }>(
+      `SELECT id FROM prospector_buscas WHERE id = $1 AND org_id = $2`,
+      [req.params.id, orgId],
+    );
+    if (!r) { res.status(404).json({ erro: 'busca não encontrada' }); return; }
+    const del = await query(
+      `DELETE FROM leads WHERE prospector_busca_id = $1 AND org_id = $2 RETURNING id`,
+      [req.params.id, orgId],
+    );
+    res.json({ ok: true, deletados: del.length });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 // MÉTRICAS
 // ============================================================
 

@@ -3,7 +3,7 @@
 // insere leads novos (dedup por google_place_id ou wa_jid) e atualiza a busca.
 // Rodado em background pelo endpoint POST /api/prospector/buscas.
 import { query, queryOne, transaction } from '../db/connection.js';
-import { textSearch, estimarPorte, extrairWhatsApp, type PlacesSearchResult } from './google-places.js';
+import { textSearch, estimarPorte, extrairWhatsApp, extrairTexto, type PlacesSearchResult } from './google-places.js';
 import { consultarCnpj, extrairCnpjDeTexto, inferirRegime } from './brasil-api.js';
 
 type Busca = {
@@ -49,6 +49,8 @@ export async function executarBusca(buscaId: string): Promise<void> {
     for (const p of places) {
       if (p.businessStatus && p.businessStatus !== 'OPERATIONAL') continue;
 
+      // Places API New devolve displayName como { text, languageCode } — precisa extrair
+      const nomeLimpo = extrairTexto(p.displayName) || 'Sem nome';
       const wa = extrairWhatsApp(p.internationalPhoneNumber || p.nationalPhoneNumber);
       const porte = estimarPorte(p.userRatingCount);
 
@@ -106,7 +108,7 @@ export async function executarBusca(buscaId: string): Promise<void> {
              prospector_busca_id = COALESCE(prospector_busca_id, $14)
            WHERE id = $15`,
           [
-            p.displayName, busca.segmento, busca.cidade, p.websiteUri, p.formattedAddress,
+            nomeLimpo, busca.segmento, busca.cidade, p.websiteUri, p.formattedAddress,
             p.rating, p.userRatingCount, porte, cnpj, regime, cnae, dataAbertura,
             p.id, buscaId, existente.id,
           ],
@@ -122,7 +124,7 @@ export async function executarBusca(buscaId: string): Promise<void> {
              gancho_contabil, stage
            ) VALUES ($1, $2, $3, 'prospector', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::date, $15, $16, $17, 'novo')`,
           [
-            busca.org_id, wa || `place:${p.id}`, p.displayName, busca.segmento, busca.cidade,
+            busca.org_id, wa || `place:${p.id}`, nomeLimpo, busca.segmento, busca.cidade,
             p.websiteUri, p.formattedAddress, p.rating, p.userRatingCount,
             porte, cnpj, regime, cnae, dataAbertura, p.id, buscaId, gancho,
           ],

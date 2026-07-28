@@ -5,11 +5,15 @@ import { config } from '../config.js';
 
 const BASE = 'https://places.googleapis.com/v1';
 
+// Campos textuais localizados retornam como { text, languageCode }
+type LocalizedText = { text: string; languageCode?: string };
+
 export type PlacesSearchResult = {
   id: string;                    // Place ID único
-  displayName?: string;
+  displayName?: LocalizedText | string;
   formattedAddress?: string;
   primaryType?: string;
+  primaryTypeDisplayName?: LocalizedText | string;
   rating?: number;
   userRatingCount?: number;
   nationalPhoneNumber?: string;
@@ -19,6 +23,16 @@ export type PlacesSearchResult = {
   location?: { latitude: number; longitude: number };
   googleMapsUri?: string;
 };
+
+/**
+ * Extrai string de campo que pode ser LocalizedText ou string direta.
+ * A API New retorna nomes como { text, languageCode }; a antiga era string.
+ */
+export function extrairTexto(campo: LocalizedText | string | undefined): string | undefined {
+  if (!campo) return undefined;
+  if (typeof campo === 'string') return campo;
+  return campo.text;
+}
 
 type PlacesApiError = { code: number; message: string; status: string };
 
