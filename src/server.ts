@@ -61,7 +61,7 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 // Rewrite: d.relacionapac.com.br/<slug> → /d/<slug>
 // Lê hostname de x-forwarded-host primeiro (proxy), depois req.hostname (fallback)
 app.use((req, _res, next) => {
-  const fwd = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+  const fwd = String(req.headers['x-forwarded-host'] || '').split(',')[0]?.trim() ?? '';
   const host = (fwd || req.hostname || '').toLowerCase();
   if (
     host.startsWith('d.') &&

@@ -34,7 +34,8 @@ diagnosticoPublicoRouter.get('/:slug', async (req, res, next) => {
     }
 
     // Registra view (fire-and-forget — não segura resposta do lead)
-    const ip = (req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || req.ip || '').slice(0, 45);
+    const fwd = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim();
+    const ip = (fwd || req.ip || '').slice(0, 45);
     const ua = String(req.headers['user-agent'] || '').slice(0, 500);
     const ref = String(req.headers.referer || '').slice(0, 500);
     const viewEntry = JSON.stringify({ at: new Date().toISOString(), ip, ua, ref });

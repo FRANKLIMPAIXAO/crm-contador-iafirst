@@ -62,7 +62,8 @@ export function inferirRegime(info: CnpjInfo): string {
 export function extrairCnpjDeTexto(texto?: string): string | null {
   if (!texto) return null;
   const match = texto.match(/(\d{2}[.\s]?\d{3}[.\s]?\d{3}[/\s]?\d{4}[-\s]?\d{2})/);
-  if (!match) return null;
-  const digits = match[1].replace(/\D/g, '');
+  const raw = match?.[1];
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, '');
   return digits.length === 14 ? digits : null;
 }
