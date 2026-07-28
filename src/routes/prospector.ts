@@ -733,7 +733,7 @@ function gerarSlug(nome: string, cidade: string | null): string {
 }
 
 function urlPublica(slug: string): string {
-  const base = process.env.DIAGNOSTICOS_BASE_URL || 'https://d.relacionapac.com.br';
+  const base = process.env.DIAGNOSTICOS_BASE_URL || 'https://d.anapaixao.com';
   return `${base}/${slug}`;
 }
 

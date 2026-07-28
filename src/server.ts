@@ -59,13 +59,15 @@ app.use(
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// Rewrite: d.relacionapac.com.br/<slug> → /d/<slug>
-// Lê hostname de x-forwarded-host primeiro (proxy), depois req.hostname (fallback)
+// Rewrite: qualquer host começando com "d." → /d/<slug>
+// Cobre d.anapaixao.com (PAC), d.relacionapac.com.br (pessoal) e futuros
+// Lê hostname de x-forwarded-host primeiro (proxy Traefik), depois req.hostname
 app.use((req, _res, next) => {
   const fwd = String(req.headers['x-forwarded-host'] || '').split(',')[0]?.trim() ?? '';
   const host = (fwd || req.hostname || '').toLowerCase();
+  const isDiagnosticoHost = host.startsWith('d.') || host.startsWith('dp.');
   if (
-    host.startsWith('d.') &&
+    isDiagnosticoHost &&
     !req.path.startsWith('/d/') &&
     !req.path.startsWith('/api/') &&
     !req.path.startsWith('/webhook/') &&
