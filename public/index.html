@@ -73,6 +73,7 @@
       <button data-tab="prospector" class="tab-btn px-4 py-3 text-sm border-b-2 border-transparent text-zinc-400 hover:text-zinc-200">🎯 Prospector</button>
       <button data-tab="mentorados" class="tab-btn px-4 py-3 text-sm border-b-2 border-transparent text-zinc-400 hover:text-zinc-200">🎓 Mentorados</button>
       <button data-tab="financeiro" class="tab-btn px-4 py-3 text-sm border-b-2 border-transparent text-zinc-400 hover:text-zinc-200">💰 Financeiro</button>
+      <button data-tab="equipe" id="tab-equipe" class="tab-btn hidden px-4 py-3 text-sm border-b-2 border-transparent text-zinc-400 hover:text-zinc-200">👥 Equipe</button>
     </nav>
 
     <!-- ============= VIEW LEADS (atual) ============= -->
@@ -207,6 +208,32 @@
         </div>
       </div>
     </div><!-- /view-prospector -->
+
+    <!-- ================== VIEW EQUIPE (só admin) ================== -->
+    <div id="view-equipe" class="hidden flex-1 flex flex-col overflow-hidden">
+      <div class="px-6 py-4 flex justify-between items-center border-b border-zinc-800 flex-shrink-0">
+        <div>
+          <h2 class="text-lg font-semibold text-zinc-200">👥 Equipe da PAC</h2>
+          <p class="text-xs text-zinc-500 mt-1">Só quem tem papel <strong class="text-lime-400">admin</strong> pode gerenciar usuários.</p>
+        </div>
+        <button onclick="abrirNovoUsuario()" class="px-4 py-2 bg-lime-500 text-black text-sm font-semibold rounded-lg hover:bg-lime-400">+ Novo usuário</button>
+      </div>
+      <div class="flex-1 overflow-y-auto px-6 py-4">
+        <table class="w-full text-sm">
+          <thead class="text-xs uppercase text-zinc-500 border-b border-zinc-800">
+            <tr>
+              <th class="text-left py-3 px-2">Nome</th>
+              <th class="text-left py-3 px-2">Email</th>
+              <th class="text-left py-3 px-2">Papel</th>
+              <th class="text-left py-3 px-2">Status</th>
+              <th class="text-left py-3 px-2">Último acesso</th>
+              <th class="text-right py-3 px-2">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-users"></tbody>
+        </table>
+      </div>
+    </div><!-- /view-equipe -->
 
     <footer class="border-t border-zinc-800 px-6 py-2 text-xs text-zinc-500 flex justify-between bg-zinc-900 flex-shrink-0">
       <div><span class="text-lime-400">●</span> API online <span class="ml-3">⏱️ <span id="footer-time"></span></span></div>
@@ -614,7 +641,7 @@
         b.classList.toggle('border-transparent', !ativo);
         b.classList.toggle('text-zinc-400', !ativo);
       });
-      ['leads','prospector','mentorados','financeiro'].forEach(t => {
+      ['leads','prospector','mentorados','financeiro','equipe'].forEach(t => {
         const v = el('view-' + t);
         if (!v) return;
         v.classList.toggle('hidden', t !== tab);
@@ -624,6 +651,7 @@
       if (tab === 'mentorados') carregarMentorados();
       if (tab === 'financeiro') carregarFinanceiro();
       if (tab === 'prospector') carregarProspector();
+      if (tab === 'equipe') carregarUsuarios();
     }
     document.querySelectorAll('.tab-btn').forEach(b => {
       b.addEventListener('click', () => trocarTab(b.dataset.tab));
@@ -912,7 +940,95 @@
       } catch (e) { alert('❌ ' + e.message); }
     }
 
-    if (getToken()) mostrarDashboard(); else el('screen-login').classList.remove('hidden');
+    // =========================================================
+    // ===== EQUIPE / USUÁRIOS =================================
+    // =========================================================
+    function mostrarAbaEquipeSeAdmin() {
+      const u = getUser();
+      const tabE = el('tab-equipe');
+      if (!tabE) return;
+      if (u && u.papel === 'admin') tabE.classList.remove('hidden');
+      else tabE.classList.add('hidden');
+    }
+
+    async function carregarUsuarios() {
+      try {
+        const { users } = await api('/api/users');
+        const meuId = getUser()?.id;
+        const tbody = el('tbl-users');
+        if (!users.length) {
+          tbody.innerHTML = `<tr><td colspan="6" class="text-center text-zinc-500 py-8">Nenhum usuário cadastrado.</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = users.map(u => {
+          const corPapel = u.papel === 'admin' ? 'text-red-400' : u.papel === 'closer' ? 'text-lime-400' : 'text-zinc-400';
+          const bgStatus = u.ativo ? 'bg-lime-500/20 text-lime-400' : 'bg-zinc-800 text-zinc-500';
+          const ultimo = u.ultimo_acesso ? new Date(u.ultimo_acesso).toLocaleString('pt-BR', {dateStyle:'short', timeStyle:'short'}) : '—';
+          const ehEu = u.id === meuId;
+          return `<tr class="border-b border-zinc-800/50 hover:bg-zinc-800/30">
+            <td class="py-3 px-2 font-medium">${escapeHtml(u.nome)}${ehEu ? ' <span class="text-[10px] text-cyan-400">(você)</span>' : ''}</td>
+            <td class="py-3 px-2 text-zinc-400">${escapeHtml(u.email)}</td>
+            <td class="py-3 px-2 font-semibold ${corPapel}">${u.papel}</td>
+            <td class="py-3 px-2"><span class="px-2 py-0.5 rounded text-xs ${bgStatus}">${u.ativo ? 'ativo' : 'inativo'}</span></td>
+            <td class="py-3 px-2 text-zinc-500 text-xs">${ultimo}</td>
+            <td class="py-3 px-2 text-right space-x-1">
+              <button onclick="resetarSenhaUser('${u.id}','${escapeAttr(u.nome)}')" title="Resetar senha" class="px-2 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 rounded">🔑</button>
+              <button onclick="mudarPapelUser('${u.id}','${escapeAttr(u.nome)}','${u.papel}')" title="Mudar papel" class="px-2 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 rounded" ${ehEu?'disabled style=opacity:.4':''}>🎭</button>
+              <button onclick="toggleAtivoUser('${u.id}','${escapeAttr(u.nome)}',${u.ativo})" title="${u.ativo?'Desativar':'Ativar'}" class="px-2 py-1 text-xs ${u.ativo?'bg-red-500/20 text-red-400 hover:bg-red-500/30':'bg-lime-500/20 text-lime-400 hover:bg-lime-500/30'} rounded" ${ehEu?'disabled style=opacity:.4':''}>${u.ativo?'⛔':'✓'}</button>
+            </td>
+          </tr>`;
+        }).join('');
+      } catch (e) {
+        el('tbl-users').innerHTML = `<tr><td colspan="6" class="text-center text-red-400 py-8">Erro: ${e.message}</td></tr>`;
+      }
+    }
+
+    async function abrirNovoUsuario() {
+      const nome = prompt('Nome completo:');
+      if (!nome || nome.trim().length < 2) return;
+      const email = prompt('E-mail (será usado no login):');
+      if (!email || !email.includes('@')) { alert('E-mail inválido'); return; }
+      const senha = prompt('Senha (mínimo 6 caracteres):');
+      if (!senha || senha.length < 6) { alert('Senha muito curta'); return; }
+      const papel = prompt('Papel: admin, closer ou viewer\n\n(admin = gerencia tudo\ncloser = usa CRM\nviewer = só lê)', 'closer');
+      if (!papel || !['admin','closer','viewer'].includes(papel)) { alert('Papel inválido'); return; }
+      try {
+        const r = await api('/api/users', { method: 'POST', body: JSON.stringify({ nome: nome.trim(), email: email.trim().toLowerCase(), senha, papel }) });
+        alert('✅ Usuário criado!\n\n' + r.user.nome + ' (' + r.user.email + ')\n\nManda o login pra pessoa acessar em https://relacionapac.com.br');
+        carregarUsuarios();
+      } catch (e) { alert('❌ ' + e.message); }
+    }
+
+    async function resetarSenhaUser(id, nome) {
+      const nova = prompt(`Nova senha para "${nome}" (mínimo 6 chars):`);
+      if (!nova || nova.length < 6) return;
+      try {
+        await api('/api/users/' + id, { method: 'PATCH', body: JSON.stringify({ nova_senha: nova }) });
+        alert(`✅ Senha de ${nome} resetada.\n\nNova senha: ${nova}\n\nAvisa a pessoa!`);
+      } catch (e) { alert('❌ ' + e.message); }
+    }
+
+    async function mudarPapelUser(id, nome, papelAtual) {
+      const opcoes = ['admin','closer','viewer'].filter(p => p !== papelAtual);
+      const novo = prompt(`Papel atual de ${nome}: ${papelAtual}\n\nMudar para (${opcoes.join('/')}):`);
+      if (!novo || !['admin','closer','viewer'].includes(novo)) return;
+      try {
+        await api('/api/users/' + id, { method: 'PATCH', body: JSON.stringify({ papel: novo }) });
+        alert(`✅ ${nome} agora é ${novo}.`);
+        carregarUsuarios();
+      } catch (e) { alert('❌ ' + e.message); }
+    }
+
+    async function toggleAtivoUser(id, nome, ativoAgora) {
+      const acao = ativoAgora ? 'DESATIVAR' : 'ATIVAR';
+      if (!confirm(`${acao} usuário "${nome}"?\n\n${ativoAgora ? 'A pessoa perde acesso imediato.' : 'A pessoa poderá logar de novo.'}`)) return;
+      try {
+        await api('/api/users/' + id, { method: 'PATCH', body: JSON.stringify({ ativo: !ativoAgora }) });
+        carregarUsuarios();
+      } catch (e) { alert('❌ ' + e.message); }
+    }
+
+    if (getToken()) { mostrarDashboard(); mostrarAbaEquipeSeAdmin(); } else el('screen-login').classList.remove('hidden');
     setInterval(() => { if (getToken() && _tabAtual === 'leads') carregarLeads(); }, 10000);
     setInterval(() => { if (getToken() && _tabAtual === 'prospector') carregarProspector(); }, 15000);
   </script>
