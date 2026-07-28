@@ -25,9 +25,6 @@
     "ws": "^8.18.0",
     "zod": "^3.23.8"
   },
-  "optionalDependencies": {
-    "better-sqlite3": "^13.0.1"
-  },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
