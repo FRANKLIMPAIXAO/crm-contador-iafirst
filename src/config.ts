@@ -28,6 +28,10 @@ const schema = z.object({
   SEXTA_WEBHOOK_SECRET: z.string().min(16).optional(),
 
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+
+  // Prospector — Google Places API + página pública
+  GOOGLE_PLACES_API_KEY: z.string().optional(),
+  DIAGNOSTICOS_BASE_URL: z.string().url().default('https://d.relacionapac.com.br'),
 });
 
 const parsed = schema.safeParse(process.env);

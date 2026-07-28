@@ -16,6 +16,8 @@ import { mentoriasRouter } from './routes/mentorias.js';
 import { alunosRouter } from './routes/alunos.js';
 import { matriculasRouter } from './routes/matriculas.js';
 import { cobrancasRouter } from './routes/cobrancas.js';
+import { prospectorRouter } from './routes/prospector.js';
+import { diagnosticoPublicoRouter } from './routes/diagnostico-publico.js';
 import { pool, autoMigrate, autoSeed } from './db/connection.js';
 import { hashSenha } from './auth/hash.js';
 
@@ -43,6 +45,10 @@ function resolverPublicDir(): string {
 }
 const publicDir = resolverPublicDir();
 
+// EasyPanel/Traefik é reverse proxy — Express precisa confiar nos X-Forwarded-*
+// (senão req.hostname devolve o host interno do container, não o público)
+app.set('trust proxy', true);
+
 app.use(
   cors({
     origin: config.CORS_ORIGIN.split(',').map((s) => s.trim()),
@@ -51,6 +57,24 @@ app.use(
 );
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Rewrite: d.relacionapac.com.br/<slug> → /d/<slug>
+// Lê hostname de x-forwarded-host primeiro (proxy), depois req.hostname (fallback)
+app.use((req, _res, next) => {
+  const fwd = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+  const host = (fwd || req.hostname || '').toLowerCase();
+  if (
+    host.startsWith('d.') &&
+    !req.path.startsWith('/d/') &&
+    !req.path.startsWith('/api/') &&
+    !req.path.startsWith('/webhook/') &&
+    req.path !== '/health' &&
+    req.path !== '/ready'
+  ) {
+    req.url = '/d' + req.url;
+  }
+  next();
+});
 
 app.get('/health', (_req, res) => {
   res.json({
@@ -79,6 +103,8 @@ app.use('/api/mentorias', mentoriasRouter);
 app.use('/api/alunos', alunosRouter);
 app.use('/api/matriculas', matriculasRouter);
 app.use('/api/cobrancas', cobrancasRouter);
+app.use('/api/prospector', prospectorRouter);
+app.use('/d', diagnosticoPublicoRouter);
 app.use('/webhook', webhookRouter);
 
 app.use(express.static(publicDir));

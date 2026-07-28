@@ -70,6 +70,7 @@
     <!-- Tabs navigation -->
     <nav class="bg-zinc-900 border-b border-zinc-800 px-6 flex gap-1 flex-shrink-0">
       <button data-tab="leads" class="tab-btn px-4 py-3 text-sm border-b-2 border-lime-400 text-lime-400 font-semibold">⚡ Leads</button>
+      <button data-tab="prospector" class="tab-btn px-4 py-3 text-sm border-b-2 border-transparent text-zinc-400 hover:text-zinc-200">🎯 Prospector</button>
       <button data-tab="mentorados" class="tab-btn px-4 py-3 text-sm border-b-2 border-transparent text-zinc-400 hover:text-zinc-200">🎓 Mentorados</button>
       <button data-tab="financeiro" class="tab-btn px-4 py-3 text-sm border-b-2 border-transparent text-zinc-400 hover:text-zinc-200">💰 Financeiro</button>
     </nav>
@@ -162,6 +163,50 @@
         💡 Lista de cobranças + integração PIX Banco Inter + emissão NFS-e Focus chegam na próxima fase.
       </div>
     </div><!-- /view-financeiro -->
+
+    <!-- ================== VIEW PROSPECTOR ================== -->
+    <div id="view-prospector" class="hidden flex-1 flex flex-col overflow-hidden">
+      <!-- Métricas + Nova busca -->
+      <div class="px-6 pt-4 grid grid-cols-2 md:grid-cols-5 gap-3 flex-shrink-0">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase text-zinc-500">Leads capturados</div><div class="text-2xl font-bold text-lime-400 mt-1" id="p-total">0</div></div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase text-zinc-500">Novos</div><div class="text-2xl font-bold text-cyan-400 mt-1" id="p-novos">0</div></div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase text-zinc-500">Em andamento</div><div class="text-2xl font-bold text-yellow-400 mt-1" id="p-andam">0</div></div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase text-zinc-500">Diagnósticos</div><div class="text-2xl font-bold text-purple-400 mt-1" id="p-diag">0</div></div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4"><div class="text-xs uppercase text-zinc-500">Views totais</div><div class="text-2xl font-bold text-orange-400 mt-1" id="p-views">0</div></div>
+      </div>
+      <div class="px-6 py-4 flex-shrink-0 flex flex-wrap gap-2 items-center border-b border-zinc-800">
+        <button onclick="abrirModalBusca()" class="px-4 py-2 bg-lime-500 text-black text-sm font-semibold rounded-lg hover:bg-lime-400">🔍 Nova busca</button>
+        <button onclick="carregarProspector()" class="px-3 py-2 bg-zinc-800 text-zinc-300 text-sm rounded-lg hover:bg-zinc-700">🔄 Atualizar</button>
+        <div class="flex-1"></div>
+        <span class="text-xs text-zinc-500">Últimas buscas:</span>
+        <div id="p-buscas-recentes" class="flex gap-2 text-xs"></div>
+      </div>
+      <!-- Kanban -->
+      <div class="flex-1 overflow-x-auto overflow-y-hidden px-6 py-4">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-3 h-full min-w-[900px]">
+          <div class="bg-zinc-950 border border-zinc-800 rounded-xl p-3 flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center mb-2 flex-shrink-0"><div class="text-xs font-semibold text-cyan-400 uppercase">⚪ Novos</div><span class="text-xs text-zinc-500" id="kb-novos">0</span></div>
+            <div id="col-novos" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
+          </div>
+          <div class="bg-zinc-950 border border-zinc-800 rounded-xl p-3 flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center mb-2 flex-shrink-0"><div class="text-xs font-semibold text-yellow-400 uppercase">🟡 Qualificados</div><span class="text-xs text-zinc-500" id="kb-qual">0</span></div>
+            <div id="col-qualificado" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
+          </div>
+          <div class="bg-zinc-950 border border-zinc-800 rounded-xl p-3 flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center mb-2 flex-shrink-0"><div class="text-xs font-semibold text-orange-400 uppercase">🟠 Proposta</div><span class="text-xs text-zinc-500" id="kb-prop">0</span></div>
+            <div id="col-proposta" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
+          </div>
+          <div class="bg-zinc-950 border border-zinc-800 rounded-xl p-3 flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center mb-2 flex-shrink-0"><div class="text-xs font-semibold text-purple-400 uppercase">🟣 Negociação</div><span class="text-xs text-zinc-500" id="kb-neg">0</span></div>
+            <div id="col-negociacao" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
+          </div>
+          <div class="bg-zinc-950 border border-zinc-800 rounded-xl p-3 flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center mb-2 flex-shrink-0"><div class="text-xs font-semibold text-lime-400 uppercase">🟢 Fechados</div><span class="text-xs text-zinc-500" id="kb-fech">0</span></div>
+            <div id="col-fechado" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /view-prospector -->
 
     <footer class="border-t border-zinc-800 px-6 py-2 text-xs text-zinc-500 flex justify-between bg-zinc-900 flex-shrink-0">
       <div><span class="text-lime-400">●</span> API online <span class="ml-3">⏱️ <span id="footer-time"></span></span></div>
@@ -569,7 +614,7 @@
         b.classList.toggle('border-transparent', !ativo);
         b.classList.toggle('text-zinc-400', !ativo);
       });
-      ['leads','mentorados','financeiro'].forEach(t => {
+      ['leads','prospector','mentorados','financeiro'].forEach(t => {
         const v = el('view-' + t);
         if (!v) return;
         v.classList.toggle('hidden', t !== tab);
@@ -578,6 +623,7 @@
       });
       if (tab === 'mentorados') carregarMentorados();
       if (tab === 'financeiro') carregarFinanceiro();
+      if (tab === 'prospector') carregarProspector();
     }
     document.querySelectorAll('.tab-btn').forEach(b => {
       b.addEventListener('click', () => trocarTab(b.dataset.tab));
@@ -735,8 +781,136 @@
       } catch (e) { console.error('[financeiro]', e.message); }
     }
 
+    // =========================================================
+    // ===== PROSPECTOR ========================================
+    // =========================================================
+    async function carregarProspector() {
+      try {
+        const [{ resumo, por_segmento }, { leads }, { buscas }] = await Promise.all([
+          api('/api/prospector/metricas'),
+          api('/api/prospector/leads'),
+          api('/api/prospector/buscas?limit=5'),
+        ]);
+        el('p-total').textContent = resumo.total_leads || 0;
+        el('p-novos').textContent = resumo.novos || 0;
+        el('p-andam').textContent = resumo.em_andamento || 0;
+        el('p-diag').textContent = resumo.diagnosticos_gerados || 0;
+        el('p-views').textContent = resumo.diagnosticos_views_total || 0;
+
+        // Buscas recentes chips
+        el('p-buscas-recentes').innerHTML = (buscas || []).slice(0,4).map(b => {
+          const cor = b.status === 'concluida' ? 'lime' : b.status === 'rodando' ? 'yellow' : b.status === 'erro' ? 'red' : 'zinc';
+          return `<span class="px-2 py-1 rounded bg-${cor}-500/10 text-${cor}-400 border border-${cor}-500/30" title="${b.leads_encontrados||0} encontrados, ${b.leads_novos||0} novos">${escapeHtml(b.segmento)} · ${b.status}</span>`;
+        }).join('');
+
+        // Distribui leads no kanban
+        const cols = { novo:'col-novos', qualificado:'col-qualificado', proposta:'col-proposta', negociacao:'col-negociacao', fechado:'col-fechado' };
+        const cnts = { novo:0, qualificado:0, proposta:0, negociacao:0, fechado:0 };
+        Object.values(cols).forEach(id => { const c = el(id); if (c) c.innerHTML = ''; });
+        (leads || []).forEach(l => {
+          const stage = l.stage in cols ? l.stage : 'novo';
+          cnts[stage] = (cnts[stage] || 0) + 1;
+          const c = el(cols[stage]); if (!c) return;
+          c.insertAdjacentHTML('beforeend', cardLeadProspector(l));
+        });
+        el('kb-novos').textContent = cnts.novo;
+        el('kb-qual').textContent  = cnts.qualificado;
+        el('kb-prop').textContent  = cnts.proposta;
+        el('kb-neg').textContent   = cnts.negociacao;
+        el('kb-fech').textContent  = cnts.fechado;
+      } catch (e) { console.error('[prospector]', e.message); }
+    }
+
+    function cardLeadProspector(l) {
+      const porte = l.porte && l.porte !== 'indefinido' ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">${l.porte}</span>` : '';
+      const nota = l.nota_google ? `⭐ ${Number(l.nota_google).toFixed(1)} (${l.avaliacoes_google||0})` : '';
+      const wa = l.wa_jid && !l.wa_jid.startsWith('place:') ? `📱 ${l.wa_jid.slice(-9)}` : '<span class="text-zinc-600">sem wpp</span>';
+      const gancho = l.gancho_contabil ? `<div class="text-[11px] text-zinc-500 mt-1 line-clamp-2">${escapeHtml(l.gancho_contabil)}</div>` : '';
+      const diag = l.diag_slug
+        ? `<div class="mt-2 flex items-center gap-2 text-[11px]">
+             <a href="/d/${l.diag_slug}" target="_blank" class="text-cyan-400 hover:underline">📄 ver página</a>
+             <span class="text-orange-400" title="Visualizações">👀 ${l.diag_views||0}</span>
+           </div>`
+        : `<button onclick="gerarDiag('${l.id}')" class="mt-2 w-full text-[11px] px-2 py-1 bg-purple-500/20 text-purple-300 rounded hover:bg-purple-500/30">✨ Gerar diagnóstico</button>`;
+      const abordar = l.diag_slug && l.wa_jid && !l.wa_jid.startsWith('place:')
+        ? `<button onclick="abordarProsp('${l.id}')" class="mt-1 w-full text-[11px] px-2 py-1 bg-lime-500/20 text-lime-300 rounded hover:bg-lime-500/30">📱 Abordar</button>`
+        : '';
+      const promover = l.stage === 'fechado'
+        ? `<button onclick="promoverProsp('${l.id}','${escapeAttr(l.nome)}','${escapeAttr(l.wa_jid)}')" class="mt-1 w-full text-[11px] px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded hover:bg-yellow-500/30">🎓 Promover a aluno</button>`
+        : '';
+      return `<div class="bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 hover:border-zinc-700">
+        <div class="flex justify-between items-start gap-2">
+          <div class="text-sm font-medium text-zinc-200 truncate" title="${escapeAttr(l.nome)}">${escapeHtml(l.nome)}</div>
+          ${porte}
+        </div>
+        <div class="text-[11px] text-zinc-500 mt-0.5">${escapeHtml(l.segmento || '')} · ${escapeHtml(l.cidade || '')}</div>
+        <div class="text-[11px] text-zinc-400 mt-1 flex justify-between"><span>${nota}</span><span>${wa}</span></div>
+        ${gancho}
+        ${diag}
+        ${abordar}
+        ${promover}
+      </div>`;
+    }
+
+    function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function escapeAttr(s) { return escapeHtml(s).replace(/'/g, '&apos;'); }
+
+    function abrirModalBusca() {
+      const seg = prompt('Segmento (ex: oficinas mecânicas, pet shops, restaurantes):');
+      if (!seg) return;
+      const cid = prompt('Cidade (ex: Aparecida de Goiânia):');
+      if (!cid) return;
+      const meta = Number(prompt('Quantos leads (padrão 15):', '15')) || 15;
+      novaBusca(seg, cid, meta);
+    }
+
+    async function novaBusca(segmento, cidade, meta_leads) {
+      try {
+        const r = await api('/api/prospector/buscas', { method: 'POST', body: JSON.stringify({ segmento, cidade, meta_leads }) });
+        alert(`✅ Busca iniciada em background.\n\n"${segmento} em ${cidade}" (meta ${meta_leads} leads)\n\nAtualize em ~30-60s pra ver os leads chegando.`);
+        setTimeout(carregarProspector, 3000);
+      } catch (e) { alert('❌ ' + e.message); }
+    }
+
+    async function gerarDiag(leadId) {
+      if (!confirm('Gerar página-diagnóstico com IA? Leva ~15s e consome créditos Claude.')) return;
+      try {
+        const r = await api(`/api/prospector/diagnosticos/${leadId}`, { method: 'POST' });
+        alert('✅ Página gerada!\n\n' + r.url_publica + '\n\n(modelo: ' + (r.modelo || '?') + ')');
+        carregarProspector();
+      } catch (e) { alert('❌ ' + e.message); }
+    }
+
+    async function abordarProsp(leadId) {
+      try {
+        const r = await api(`/api/prospector/abordar/${leadId}`, { method: 'POST', body: '{}' });
+        window.open(r.wa_link, '_blank');
+        if (confirm('Abri o WhatsApp com a mensagem. Já enviou? (clique OK pra marcar como qualificado)')) {
+          await api(`/api/prospector/abordar/${leadId}/confirmar-envio`, { method: 'POST', body: '{}' });
+          carregarProspector();
+        }
+      } catch (e) { alert('❌ ' + e.message); }
+    }
+
+    async function promoverProsp(leadId, nome, whatsapp) {
+      try {
+        const { mentorias } = await api('/api/mentorias');
+        if (!mentorias?.length) { alert('❌ Cadastre uma mentoria primeiro na aba Mentorados'); return; }
+        const opts = mentorias.map((m,i) => `${i+1}) ${m.nome} — R$ ${m.valor_padrao}`).join('\n');
+        const idx = Number(prompt(`Promover "${nome}" a aluno.\n\nMentoria:\n${opts}\n\nDigite o número:`, '1')) - 1;
+        if (isNaN(idx) || !mentorias[idx]) return;
+        const m = mentorias[idx];
+        const valor = Number(prompt('Valor mensal (R$):', String(m.valor_padrao))) || Number(m.valor_padrao);
+        const dia = Number(prompt('Dia do vencimento (1-28):', '10')) || 10;
+        await api(`/api/alunos/promover-lead/${leadId}`, { method: 'POST', body: JSON.stringify({ mentoria_id: m.id, valor, dia_vencimento: dia }) });
+        alert('✅ Aluno criado! Confira na aba Mentorados.');
+        carregarProspector();
+      } catch (e) { alert('❌ ' + e.message); }
+    }
+
     if (getToken()) mostrarDashboard(); else el('screen-login').classList.remove('hidden');
     setInterval(() => { if (getToken() && _tabAtual === 'leads') carregarLeads(); }, 10000);
+    setInterval(() => { if (getToken() && _tabAtual === 'prospector') carregarProspector(); }, 15000);
   </script>
 </body>
 </html>

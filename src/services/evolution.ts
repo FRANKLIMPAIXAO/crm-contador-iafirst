@@ -32,7 +32,8 @@ export async function sendText({
     return { ok: false, erro: 'EVOLUTION_API_URL/KEY não configurados' };
   }
   const inst = instancia || config.EVOLUTION_INSTANCE_DEFAULT;
-  const url = `${config.EVOLUTION_API_URL!.replace(/\/+$/, '')}/message/sendText/${inst}`;
+  // encodeURIComponent pra suportar nomes com espaço/caracteres especiais
+  const url = `${config.EVOLUTION_API_URL!.replace(/\/+$/, '')}/message/sendText/${encodeURIComponent(inst)}`;
 
   // Evolution aceita JID ou só número (sem @s.whatsapp.net)
   // Padroniza: tira sufixo se vier

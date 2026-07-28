@@ -304,3 +304,101 @@ CREATE TABLE IF NOT EXISTS pagamentos (
 CREATE INDEX IF NOT EXISTS idx_pagamentos_org ON pagamentos(org_id, pago_em DESC);
 CREATE INDEX IF NOT EXISTS idx_pagamentos_cobranca ON pagamentos(cobranca_id);
 CREATE INDEX IF NOT EXISTS idx_pagamentos_aluno ON pagamentos(aluno_id);
+
+-- ============================================================
+-- MÓDULO PROSPECTOR (Fase 8) — caça de leads por segmento
+-- Absorve o plugin prospector-contabil no CRM
+-- ============================================================
+DO $$ BEGIN
+  CREATE TYPE prospector_busca_status AS ENUM ('pendente','rodando','concluida','erro');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE prospector_porte AS ENUM ('pequeno','medio','grande','indefinido');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- PROSPECTOR_BUSCAS — cada rodada de prospecção
+CREATE TABLE IF NOT EXISTS prospector_buscas (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id              uuid NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+  segmento            text NOT NULL,
+  cidade              text NOT NULL,
+  meta_leads          int NOT NULL DEFAULT 15,
+  status              prospector_busca_status NOT NULL DEFAULT 'pendente',
+  leads_encontrados   int NOT NULL DEFAULT 0,
+  leads_novos         int NOT NULL DEFAULT 0,          -- descontando duplicados
+  motor               text NOT NULL DEFAULT 'places',  -- 'places' | 'playwright'
+  custo_estimado      numeric(10,4) DEFAULT 0,         -- em BRL
+  erro                text,
+  iniciada_em         timestamptz,
+  concluida_em        timestamptz,
+  criada_por          uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at          timestamptz NOT NULL DEFAULT now(),
+  updated_at          timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_prospector_buscas_org ON prospector_buscas(org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_prospector_buscas_status ON prospector_buscas(status) WHERE status IN ('pendente','rodando');
+DROP TRIGGER IF EXISTS trg_prospector_buscas_updated ON prospector_buscas;
+CREATE TRIGGER trg_prospector_buscas_updated BEFORE UPDATE ON prospector_buscas FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Colunas novas em LEADS (dados do Prospector)
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS prospector_busca_id uuid REFERENCES prospector_buscas(id) ON DELETE SET NULL;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS segmento text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS cidade text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS regime_atual text;    -- 'Simples','MEI','Presumido','Real','a confirmar'
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS porte prospector_porte DEFAULT 'indefinido';
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS gancho_contabil text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS email text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS site text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS endereco text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS nota_google numeric(3,2);
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS avaliacoes_google int;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS cnae_fiscal text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS data_abertura date;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS google_place_id text UNIQUE;
+
+CREATE INDEX IF NOT EXISTS idx_leads_busca ON leads(prospector_busca_id) WHERE prospector_busca_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_leads_segmento ON leads(org_id, segmento) WHERE segmento IS NOT NULL;
+
+-- PROSPECTOR_DIAGNOSTICOS — páginas geradas por IA, servidas em d.relacionapac.com.br/:slug
+CREATE TABLE IF NOT EXISTS prospector_diagnosticos (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id              uuid NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+  lead_id             uuid NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+  slug                text UNIQUE NOT NULL,             -- 'auto-eletrica-silva' (público na URL)
+  html_content        text NOT NULL,                    -- página renderizada
+  segmento            text NOT NULL,                    -- snapshot pra métricas
+  cidade              text,
+  views_count         int NOT NULL DEFAULT 0,
+  views_log           jsonb NOT NULL DEFAULT '[]'::jsonb, -- [{at, ip, ua, ref}]
+  ultima_view_em      timestamptz,
+  gerado_por_modelo   text,                             -- 'claude-sonnet-4-5' etc
+  created_at          timestamptz NOT NULL DEFAULT now(),
+  updated_at          timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_diagnosticos_org ON prospector_diagnosticos(org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_diagnosticos_lead ON prospector_diagnosticos(lead_id);
+CREATE INDEX IF NOT EXISTS idx_diagnosticos_slug ON prospector_diagnosticos(slug);
+DROP TRIGGER IF EXISTS trg_diagnosticos_updated ON prospector_diagnosticos;
+CREATE TRIGGER trg_diagnosticos_updated BEFORE UPDATE ON prospector_diagnosticos FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- CONFIG por org (limites, keys específicas, preferências)
+CREATE TABLE IF NOT EXISTS prospector_config (
+  org_id                    uuid PRIMARY KEY REFERENCES orgs(id) ON DELETE CASCADE,
+  places_api_key            text,                        -- se nulo, usa a da plataforma
+  motor_default             text NOT NULL DEFAULT 'places',
+  auto_envio_whatsapp       boolean NOT NULL DEFAULT false,
+  limite_disparos_dia       int NOT NULL DEFAULT 15,
+  horario_inicio            time NOT NULL DEFAULT '09:00',
+  horario_fim               time NOT NULL DEFAULT '18:00',
+  delay_min_segundos        int NOT NULL DEFAULT 180,
+  delay_random_segundos     int NOT NULL DEFAULT 240,
+  segmentos_ativos          text[] DEFAULT '{}',
+  cidade_padrao             text,
+  assinatura_apresentacao   text,                        -- "Franklim, contador de oficinas em Aparecida"
+  assinatura_crc            text,
+  created_at                timestamptz NOT NULL DEFAULT now(),
+  updated_at                timestamptz NOT NULL DEFAULT now()
+);
+DROP TRIGGER IF EXISTS trg_prospector_config_updated ON prospector_config;
+CREATE TRIGGER trg_prospector_config_updated BEFORE UPDATE ON prospector_config FOR EACH ROW EXECUTE FUNCTION set_updated_at();
