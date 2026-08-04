@@ -31,7 +31,7 @@ const schema = z.object({
 
   // Prospector — Google Places API + página pública
   GOOGLE_PLACES_API_KEY: z.string().optional(),
-  DIAGNOSTICOS_BASE_URL: z.string().url().default('https://d.anapaixao.com'),
+  DIAGNOSTICOS_BASE_URL: z.string().url().default('https://d.relacionapac.com.br'),
 });
 
 const parsed = schema.safeParse(process.env);
