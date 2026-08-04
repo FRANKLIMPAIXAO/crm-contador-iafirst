@@ -124,13 +124,22 @@ prospectorRouter.get('/leads', async (req, res, next) => {
       vals.push(String(req.query.cidade));
     }
 
+    // LATERAL JOIN pega SÓ o diagnóstico mais recente por lead — evita duplicar cards
     const rows = await query(
       `SELECT l.*,
               d.slug         AS diag_slug,
               d.views_count  AS diag_views,
-              d.ultima_view_em AS diag_ultima_view
+              d.ultima_view_em AS diag_ultima_view,
+              (SELECT MAX(a.created_at) FROM activities a
+                WHERE a.lead_id = l.id AND a.tipo IN ('abordagem_enviada','resposta_automatica')) AS abordado_em
          FROM leads l
-         LEFT JOIN prospector_diagnosticos d ON d.lead_id = l.id
+         LEFT JOIN LATERAL (
+           SELECT slug, views_count, ultima_view_em
+             FROM prospector_diagnosticos
+            WHERE lead_id = l.id
+            ORDER BY updated_at DESC NULLS LAST, created_at DESC
+            LIMIT 1
+         ) d ON true
         WHERE ${filtros.join(' AND ')}
         ORDER BY
           CASE l.stage
@@ -622,6 +631,31 @@ prospectorRouter.post('/importar-legado', async (req, res, next) => {
     }
 
     res.json({ ok: true, stats, erros: errosDetalhe.slice(0, 20) });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// LIMPEZA — deduplica diagnósticos (deixa só o mais recente por lead)
+// Bug antigo: regenerar criava novo slug em vez de sobrescrever, e o
+// LEFT JOIN duplicava o lead N vezes no kanban.
+// ============================================================
+
+prospectorRouter.post('/deduplicar-diagnosticos', async (req, res, next) => {
+  try {
+    const orgId = getOrgId(req);
+    const del = await query(
+      `WITH ranked AS (
+         SELECT id, lead_id,
+                ROW_NUMBER() OVER (PARTITION BY lead_id ORDER BY updated_at DESC NULLS LAST, created_at DESC) AS rn
+           FROM prospector_diagnosticos
+          WHERE org_id = $1
+       )
+       DELETE FROM prospector_diagnosticos
+        WHERE id IN (SELECT id FROM ranked WHERE rn > 1)
+        RETURNING id`,
+      [orgId],
+    );
+    res.json({ ok: true, deletados: del.length });
   } catch (err) { next(err); }
 });
 

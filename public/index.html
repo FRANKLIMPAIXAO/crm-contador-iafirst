@@ -178,6 +178,7 @@
       <div class="px-6 py-4 flex-shrink-0 flex flex-wrap gap-2 items-center border-b border-zinc-800">
         <button onclick="abrirModalBusca()" class="px-4 py-2 bg-lime-500 text-black text-sm font-semibold rounded-lg hover:bg-lime-400">🔍 Nova busca</button>
         <button onclick="carregarProspector()" class="px-3 py-2 bg-zinc-800 text-zinc-300 text-sm rounded-lg hover:bg-zinc-700">🔄 Atualizar</button>
+        <button onclick="limparDuplicados()" title="Remove diagnósticos duplicados por lead" class="px-3 py-2 bg-zinc-800 text-zinc-500 text-xs rounded-lg hover:bg-zinc-700">🧹 Deduplicar</button>
         <div class="flex-1"></div>
         <span class="text-xs text-zinc-500">Últimas buscas:</span>
         <div id="p-buscas-recentes" class="flex gap-2 text-xs"></div>
@@ -858,19 +859,37 @@
       const nota = l.nota_google ? `⭐ ${Number(l.nota_google).toFixed(1)} (${l.avaliacoes_google||0})` : '';
       const wa = l.wa_jid && !l.wa_jid.startsWith('place:') ? `📱 ${l.wa_jid.slice(-9)}` : '<span class="text-zinc-600">sem wpp</span>';
       const gancho = l.gancho_contabil ? `<div class="text-[11px] text-zinc-500 mt-1 line-clamp-2">${escapeHtml(l.gancho_contabil)}</div>` : '';
+
+      // Badge de abordagem — se já foi abordado, mostra data e destaca visualmente
+      const jaAbordado = !!l.abordado_em;
+      const badgeAbordado = jaAbordado
+        ? `<div class="mt-2 flex items-center gap-1 text-[10px] px-2 py-1 rounded bg-lime-500/10 text-lime-400 border border-lime-500/30">
+             ✅ Abordado em ${new Date(l.abordado_em).toLocaleDateString('pt-BR')}
+           </div>`
+        : '';
+
       const diag = l.diag_slug
         ? `<div class="mt-2 flex items-center gap-2 text-[11px]">
              <a href="/d/${l.diag_slug}" target="_blank" class="text-cyan-400 hover:underline">📄 ver página</a>
              <span class="text-orange-400" title="Visualizações">👀 ${l.diag_views||0}</span>
            </div>`
         : `<button onclick="gerarDiag('${l.id}')" class="mt-2 w-full text-[11px] px-2 py-1 bg-purple-500/20 text-purple-300 rounded hover:bg-purple-500/30">✨ Gerar diagnóstico</button>`;
+
+      // Botão Abordar muda de cor/texto se já foi abordado
       const abordar = l.diag_slug && l.wa_jid && !l.wa_jid.startsWith('place:')
-        ? `<button onclick="abordarProsp('${l.id}')" class="mt-1 w-full text-[11px] px-2 py-1 bg-lime-500/20 text-lime-300 rounded hover:bg-lime-500/30">📱 Abordar</button>`
+        ? (jaAbordado
+            ? `<button onclick="abordarProsp('${l.id}', true)" class="mt-1 w-full text-[11px] px-2 py-1 bg-zinc-700/50 text-zinc-400 rounded hover:bg-zinc-700 border border-zinc-600">🔁 Reabordar</button>`
+            : `<button onclick="abordarProsp('${l.id}', false)" class="mt-1 w-full text-[11px] px-2 py-1 bg-lime-500/20 text-lime-300 rounded hover:bg-lime-500/30 font-semibold">📱 Abordar</button>`)
         : '';
+
       const promover = l.stage === 'fechado'
         ? `<button onclick="promoverProsp('${l.id}','${escapeAttr(l.nome)}','${escapeAttr(l.wa_jid)}')" class="mt-1 w-full text-[11px] px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded hover:bg-yellow-500/30">🎓 Promover a aluno</button>`
         : '';
-      return `<div class="bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 hover:border-zinc-700">
+
+      // Borda esquerda destacada se já abordado
+      const bordaLeft = jaAbordado ? 'border-l-4 border-l-lime-500/60' : '';
+
+      return `<div class="bg-zinc-900 border border-zinc-800 ${bordaLeft} rounded-lg p-2.5 hover:border-zinc-700">
         <div class="flex justify-between items-start gap-2">
           <div class="text-sm font-medium text-zinc-200 truncate" title="${escapeAttr(l.nome)}">${escapeHtml(l.nome)}</div>
           ${porte}
@@ -878,6 +897,7 @@
         <div class="text-[11px] text-zinc-500 mt-0.5">${escapeHtml(l.segmento || '')} · ${escapeHtml(l.cidade || '')}</div>
         <div class="text-[11px] text-zinc-400 mt-1 flex justify-between"><span>${nota}</span><span>${wa}</span></div>
         ${gancho}
+        ${badgeAbordado}
         ${diag}
         ${abordar}
         ${promover}
@@ -913,14 +933,28 @@
       } catch (e) { alert('❌ ' + e.message); }
     }
 
-    async function abordarProsp(leadId) {
+    async function abordarProsp(leadId, jaAbordado) {
       try {
+        if (jaAbordado && !confirm('Esse lead já foi abordado. Reabordar?')) return;
+        // 1) Gera a mensagem + wa_link
         const r = await api(`/api/prospector/abordar/${leadId}`, { method: 'POST', body: '{}' });
+        // 2) MARCA como enviado ANTES de abrir o WhatsApp (evita dialog bloqueado)
+        //    Assume que quem clicou vai enviar. Se não enviar, é só reabordar.
+        try { await api(`/api/prospector/abordar/${leadId}/confirmar-envio`, { method: 'POST', body: '{}' }); } catch(e){}
+        // 3) Abre WhatsApp Web em nova aba com mensagem pronta
         window.open(r.wa_link, '_blank');
-        if (confirm('Abri o WhatsApp com a mensagem. Já enviou? (clique OK pra marcar como qualificado)')) {
-          await api(`/api/prospector/abordar/${leadId}/confirmar-envio`, { method: 'POST', body: '{}' });
-          carregarProspector();
-        }
+        // 4) Atualiza kanban (lead sai de "Novos" pra "Qualificados")
+        setTimeout(carregarProspector, 800);
+      } catch (e) { alert('❌ ' + e.message); }
+    }
+
+    // Utilitário admin — remove diagnósticos duplicados (rode 1x)
+    async function limparDuplicados() {
+      if (!confirm('Remover diagnósticos duplicados por lead (deixa só o mais recente)?')) return;
+      try {
+        const r = await api('/api/prospector/deduplicar-diagnosticos', { method: 'POST', body: '{}' });
+        alert(`✅ ${r.deletados} diagnósticos duplicados removidos.`);
+        carregarProspector();
       } catch (e) { alert('❌ ' + e.message); }
     }
 
