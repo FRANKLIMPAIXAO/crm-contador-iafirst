@@ -169,7 +169,20 @@ export async function triarLead(leadId: string, orgId: string, textoNovo: string
           `SELECT wa_jid FROM leads WHERE id = $1`,
           [leadId],
         );
-        if (leadData?.wa_jid) {
+        // Trava dura: NUNCA responder em grupo/broadcast/canal, mesmo que um
+        // lead com jid não-individual tenha entrado no banco por outro caminho.
+        const jid = leadData?.wa_jid || '';
+        const jidIndividual = !!jid
+          && !jid.endsWith('@g.us')
+          && !jid.endsWith('@broadcast')
+          && !jid.endsWith('@newsletter')
+          && !jid.includes('@lid');
+
+        if (!jidIndividual && jid) {
+          console.warn(`[triagem] bot NAO respondeu — jid nao-individual: ${jid}`);
+        }
+
+        if (leadData?.wa_jid && jidIndividual) {
           // Delay 2-4s aleatório pra parecer humano
           const delay = 2000 + Math.floor(Math.random() * 2000);
           await new Promise((r) => setTimeout(r, delay));

@@ -160,6 +160,40 @@ gruposRouter.post('/sincronizar', async (req, res, next) => {
   }
 });
 
+// GET /api/grupos/_leads-de-grupo — lista leads criados por engano de grupos
+gruposRouter.get('/_leads-de-grupo', async (req, res, next) => {
+  try {
+    const orgId = getOrgId(req);
+    const rows = await query(
+      `SELECT id, nome, wa_jid, stage, created_at,
+              (SELECT COUNT(*) FROM messages m WHERE m.lead_id = leads.id) AS msgs
+         FROM leads
+        WHERE org_id = $1
+          AND (wa_jid LIKE '%@g.us' OR wa_jid LIKE '%@broadcast'
+               OR wa_jid LIKE '%@newsletter' OR wa_jid LIKE '%@lid%')
+        ORDER BY created_at DESC`,
+      [orgId],
+    );
+    res.json({ leads: rows, total: rows.length });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/grupos/_leads-de-grupo — apaga os leads criados de grupos
+gruposRouter.delete('/_leads-de-grupo', async (req, res, next) => {
+  try {
+    const orgId = getOrgId(req);
+    const del = await query(
+      `DELETE FROM leads
+        WHERE org_id = $1
+          AND (wa_jid LIKE '%@g.us' OR wa_jid LIKE '%@broadcast'
+               OR wa_jid LIKE '%@newsletter' OR wa_jid LIKE '%@lid%')
+        RETURNING id, nome, wa_jid`,
+      [orgId],
+    );
+    res.json({ ok: true, deletados: del.length, leads: del });
+  } catch (err) { next(err); }
+});
+
 // POST /api/grupos/:id/gerar-resumo — Claude analisa membros e resume
 gruposRouter.post('/:id/gerar-resumo', async (req, res, next) => {
   try {

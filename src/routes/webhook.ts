@@ -81,6 +81,19 @@ webhookRouter.post('/evolution', async (req, res) => {
     return;
   }
 
+  // ===== IGNORA GRUPOS, BROADCAST E NEWSLETTER =====
+  // Só conversa individual (@s.whatsapp.net) vira lead. Sem isso o bot
+  // responderia dentro dos grupos da mentoria — spam e risco de ban.
+  if (
+    waJid.endsWith('@g.us') ||            // grupo
+    waJid.endsWith('@broadcast') ||       // status/lista de transmissão
+    waJid.endsWith('@newsletter') ||      // canal
+    waJid.includes('@lid')                // linked device id
+  ) {
+    res.status(202).json({ ok: true, ignorado: 'nao-individual', jid: waJid });
+    return;
+  }
+
   const orgId = await resolverOrgIdParaInstancia(body.instance || '');
   if (!orgId) {
     res.status(500).json({ erro: 'org não encontrada — rode o seed primeiro' });
