@@ -64,3 +64,82 @@ export async function sendText({
     return { ok: false, erro: 'Evolution erro: ' + msg };
   }
 }
+
+// ============================================================
+// GROUPS — fetch all + participants
+// ============================================================
+
+export type EvolutionGroup = {
+  id: string;              // jid do grupo (ex: 120363xxxxx@g.us)
+  subject: string;         // nome do grupo
+  subjectOwner?: string;
+  subjectTime?: number;
+  creation?: number;
+  owner?: string;
+  desc?: string;
+  descId?: string;
+  restrict?: boolean;
+  announce?: boolean;
+  size?: number;
+  pictureUrl?: string | null;
+};
+
+export type EvolutionGroupParticipant = {
+  id: string;              // jid do membro (ex: 5562...@s.whatsapp.net)
+  admin?: 'admin' | 'superadmin' | null;
+};
+
+/**
+ * Lista TODOS os grupos que o número tá dentro.
+ * GET /group/fetchAllGroups/{instance}?getParticipants=false
+ */
+export async function fetchAllGroups(instancia?: string): Promise<EvolutionGroup[]> {
+  if (!isConfigured()) throw new Error('Evolution não configurada');
+  const inst = instancia || config.EVOLUTION_INSTANCE_DEFAULT;
+  const url = `${config.EVOLUTION_API_URL!.replace(/\/+$/, '')}/group/fetchAllGroups/${encodeURIComponent(inst)}?getParticipants=false`;
+  const r = await fetch(url, {
+    headers: { apikey: config.EVOLUTION_API_KEY! },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!r.ok) {
+    const t = await r.text().catch(() => '');
+    throw new Error(`Evolution fetchAllGroups ${r.status}: ${t.slice(0, 200)}`);
+  }
+  const data = await r.json();
+  // Formato varia entre versões: pode vir { groups: [...] } ou array direto
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.groups)) return data.groups;
+  return [];
+}
+
+/**
+ * Lista participantes de UM grupo.
+ * GET /group/participants/{instance}?groupJid=xxx
+ */
+export async function fetchGroupParticipants(
+  groupJid: string,
+  instancia?: string,
+): Promise<EvolutionGroupParticipant[]> {
+  if (!isConfigured()) throw new Error('Evolution não configurada');
+  const inst = instancia || config.EVOLUTION_INSTANCE_DEFAULT;
+  const url = `${config.EVOLUTION_API_URL!.replace(/\/+$/, '')}/group/participants/${encodeURIComponent(inst)}?groupJid=${encodeURIComponent(groupJid)}`;
+  const r = await fetch(url, {
+    headers: { apikey: config.EVOLUTION_API_KEY! },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!r.ok) {
+    const t = await r.text().catch(() => '');
+    throw new Error(`Evolution participants ${r.status}: ${t.slice(0, 200)}`);
+  }
+  const data = await r.json();
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.participants)) return data.participants;
+  return [];
+}
+
+/**
+ * Extrai o número puro (55DDDNNNNNNNNN) do jid Evolution.
+ */
+export function jidToNumero(jid: string): string {
+  return String(jid || '').replace(/@s\.whatsapp\.net$/, '').replace(/@g\.us$/, '').replace(/\D/g, '');
+}

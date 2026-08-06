@@ -410,5 +410,42 @@ ALTER TABLE prospector_config ADD COLUMN IF NOT EXISTS assinatura_nome text;
 ALTER TABLE prospector_config ADD COLUMN IF NOT EXISTS assinatura_escritorio text;
 ALTER TABLE prospector_config ADD COLUMN IF NOT EXISTS assinatura_whatsapp text;
 ALTER TABLE prospector_config ADD COLUMN IF NOT EXISTS cores_jsonb jsonb;
+
+-- ============================================================
+-- MÓDULO GRUPOS (Fase 11) — sincroniza grupos WhatsApp via Evolution
+-- ============================================================
+CREATE TABLE IF NOT EXISTS grupos (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id              uuid NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+  wa_group_jid        text NOT NULL,               -- 120363xxxxx@g.us
+  nome                text NOT NULL,
+  descricao           text,
+  cor                 text,                        -- hex #F97316
+  picture_url         text,
+  membros_count       int NOT NULL DEFAULT 0,
+  ai_resumo           text,                        -- resumo gerado por Claude
+  ai_atualizado_em    timestamptz,
+  ultimo_sync_em      timestamptz,
+  created_at          timestamptz NOT NULL DEFAULT now(),
+  updated_at          timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (org_id, wa_group_jid)
+);
+CREATE INDEX IF NOT EXISTS idx_grupos_org ON grupos(org_id);
+DROP TRIGGER IF EXISTS trg_grupos_updated ON grupos;
+CREATE TRIGGER trg_grupos_updated BEFORE UPDATE ON grupos FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Vínculo N:N aluno × grupo
+CREATE TABLE IF NOT EXISTS alunos_grupos (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id        uuid NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+  aluno_id      uuid NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
+  grupo_id      uuid NOT NULL REFERENCES grupos(id) ON DELETE CASCADE,
+  papel         text NOT NULL DEFAULT 'membro',   -- membro | admin | superadmin
+  entrou_em     timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (aluno_id, grupo_id)
+);
+CREATE INDEX IF NOT EXISTS idx_alunos_grupos_org ON alunos_grupos(org_id);
+CREATE INDEX IF NOT EXISTS idx_alunos_grupos_grupo ON alunos_grupos(grupo_id);
+CREATE INDEX IF NOT EXISTS idx_alunos_grupos_aluno ON alunos_grupos(aluno_id);
 DROP TRIGGER IF EXISTS trg_prospector_config_updated ON prospector_config;
 CREATE TRIGGER trg_prospector_config_updated BEFORE UPDATE ON prospector_config FOR EACH ROW EXECUTE FUNCTION set_updated_at();
