@@ -90,6 +90,23 @@ export type EvolutionGroupParticipant = {
 };
 
 /**
+ * Estado da conexão da instância: 'open' | 'close' | 'connecting'.
+ * GET /instance/connectionState/{instance}
+ */
+export async function connectionState(instancia?: string): Promise<string> {
+  if (!isConfigured()) throw new Error('Evolution não configurada');
+  const inst = instancia || config.EVOLUTION_INSTANCE_DEFAULT;
+  const base = config.EVOLUTION_API_URL!.replace(/\/+$/, '');
+  const r = await fetch(`${base}/instance/connectionState/${encodeURIComponent(inst)}`, {
+    headers: { apikey: config.EVOLUTION_API_KEY! },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!r.ok) return 'desconhecido';
+  const j = await r.json().catch(() => ({} as any));
+  return j?.instance?.state || j?.state || 'desconhecido';
+}
+
+/**
  * Lista TODOS os grupos que o número tá dentro.
  * Tenta várias variações de endpoint (versões diferentes do Evolution).
  */

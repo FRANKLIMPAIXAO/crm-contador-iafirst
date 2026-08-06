@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { requerAuth } from '../middleware/auth.js';
 import { getOrgId } from '../middleware/tenant.js';
 import { query, queryOne, transaction } from '../db/connection.js';
-import { fetchAllGroups, fetchGroupParticipants, jidToNumero } from '../services/evolution.js';
+import { fetchAllGroups, fetchGroupParticipants, jidToNumero, connectionState } from '../services/evolution.js';
 import { getClient as getAnthropic } from '../services/anthropic.js';
 
 export const gruposRouter: Router = Router();
@@ -53,6 +53,20 @@ gruposRouter.post('/sincronizar', async (req, res, next) => {
   try {
     const orgId = getOrgId(req);
     const stats = { grupos_novos: 0, grupos_atualizados: 0, vinculos_criados: 0, membros_ignorados: 0 };
+
+    // 0) Checa se o WhatsApp está conectado antes de tentar qualquer coisa
+    const estado = await connectionState().catch(() => 'desconhecido');
+    if (estado !== 'open') {
+      res.status(409).json({
+        ok: false,
+        erro: 'whatsapp_desconectado',
+        mensagem: `O WhatsApp da instância não está conectado (estado: "${estado}").\n\n` +
+          `Abra o painel do Evolution, gere o QR Code da instância e escaneie com o celular.\n` +
+          `Depois volte aqui e sincronize de novo.`,
+        estado,
+      });
+      return;
+    }
 
     // 1) Pega TODOS alunos da org uma vez (pra match esperto)
     const alunos = await query<{ id: string; nome: string; whatsapp: string | null; email: string | null }>(
