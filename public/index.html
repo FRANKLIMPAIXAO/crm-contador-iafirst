@@ -218,12 +218,44 @@
           <h2 class="text-lg font-semibold text-zinc-200">📚 Grupos WhatsApp</h2>
           <p class="text-xs text-zinc-500 mt-1">Sincroniza grupos do WhatsApp conectado e vincula membros aos alunos cadastrados.</p>
         </div>
-        <button id="btn-sync-grupos" onclick="sincronizarGrupos()" class="px-4 py-2 bg-lime-500 text-black text-sm font-semibold rounded-lg hover:bg-lime-400">🔄 Sincronizar do WhatsApp</button>
+        <div class="flex gap-2">
+          <button id="btn-descobrir" onclick="descobrirContatos()" class="px-4 py-2 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-sm font-semibold rounded-lg hover:bg-cyan-500/30">📇 Descobrir telefones</button>
+          <button id="btn-sync-grupos" onclick="sincronizarGrupos()" class="px-4 py-2 bg-lime-500 text-black text-sm font-semibold rounded-lg hover:bg-lime-400">🔄 Sincronizar do WhatsApp</button>
+        </div>
       </div>
       <div class="flex-1 overflow-y-auto px-6 py-4">
         <div id="grid-grupos" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
       </div>
     </div><!-- /view-grupos -->
+
+    <!-- Modal de revisão dos telefones descobertos -->
+    <div id="modal-contatos" class="hidden fixed inset-0 z-50 items-center justify-center px-4 modal-overlay bg-black/70">
+      <div class="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-3xl flex flex-col" style="max-height:88vh">
+        <div class="flex justify-between items-start p-5 border-b border-zinc-800 flex-shrink-0">
+          <div>
+            <h2 class="text-lg font-semibold text-cyan-400">📇 Telefones encontrados nos grupos</h2>
+            <p class="text-xs text-zinc-500 mt-1" id="cont-sub"></p>
+          </div>
+          <button onclick="hide('modal-contatos')" class="text-zinc-500 hover:text-zinc-200 text-2xl leading-none">×</button>
+        </div>
+        <div class="px-5 py-3 border-b border-zinc-800 flex-shrink-0 bg-yellow-500/5">
+          <p class="text-xs text-yellow-300">⚠️ Confere cada linha antes de aplicar. O match é por semelhança de nome e pode errar — desmarca o que não bater.</p>
+        </div>
+        <div class="px-5 py-2 border-b border-zinc-800 flex-shrink-0 flex gap-3 text-xs">
+          <button onclick="marcarTodosContatos(true)" class="text-lime-400 hover:underline">marcar todos</button>
+          <button onclick="marcarTodosContatos(false)" class="text-zinc-400 hover:underline">desmarcar todos</button>
+          <button onclick="marcarPorConfianca(85)" class="text-cyan-400 hover:underline">só confiança ≥ 85%</button>
+        </div>
+        <div id="cont-lista" class="flex-1 overflow-y-auto p-5 space-y-2"></div>
+        <div class="p-4 border-t border-zinc-800 flex justify-between items-center flex-shrink-0">
+          <span class="text-xs text-zinc-500" id="cont-contagem"></span>
+          <div class="flex gap-2">
+            <button onclick="hide('modal-contatos')" class="px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200">Cancelar</button>
+            <button id="cont-btn-aplicar" onclick="aplicarContatos()" class="px-4 py-2 bg-lime-500 text-black text-sm font-semibold rounded-lg hover:bg-lime-400">Aplicar selecionados</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Modal de conversa do grupo -->
     <div id="modal-conversa" class="hidden fixed inset-0 z-50 items-center justify-center px-4 modal-overlay bg-black/70">
@@ -1170,6 +1202,88 @@
         alert('✅ Resumo gerado!');
         carregarGrupos();
       } catch (e) { alert('❌ ' + e.message); }
+    }
+
+    let _sugestoesContatos = [];
+
+    async function descobrirContatos() {
+      const btn = el('btn-descobrir');
+      const html = btn.innerHTML;
+      try {
+        btn.disabled = true; btn.innerHTML = '⏳ Lendo grupos...';
+        const r = await api('/api/grupos/descobrir-contatos', { method: 'POST', body: JSON.stringify({ limit: 300 }) });
+        _sugestoesContatos = r.sugestoes || [];
+        el('cont-sub').textContent =
+          `${r.contatos_encontrados} contatos nas conversas · ${r.alunos_sem_whatsapp} alunos sem telefone · ` +
+          `${_sugestoesContatos.length} sugestões · ${(r.sem_match||[]).length} sem correspondência`;
+        const lista = el('cont-lista');
+        if (!_sugestoesContatos.length) {
+          lista.innerHTML = `<div class="text-center text-zinc-500 py-8">
+            Nenhuma correspondência encontrada.<br>
+            <span class="text-xs">Só aparece quem já escreveu nos grupos e cujo nome do WhatsApp parece com o cadastro.</span>
+          </div>`;
+        } else {
+          lista.innerHTML = _sugestoesContatos.map((s, i) => {
+            const cor = s.confianca >= 85 ? 'lime' : s.confianca >= 70 ? 'yellow' : 'orange';
+            return `<label class="flex items-start gap-3 bg-zinc-950 border border-zinc-800 rounded-lg p-3 hover:border-zinc-700 cursor-pointer">
+              <input type="checkbox" class="cont-check mt-1" data-i="${i}" ${s.confianca >= 85 ? 'checked' : ''} onchange="atualizarContagemContatos()">
+              <div class="flex-1 min-w-0">
+                <div class="flex justify-between items-start gap-2">
+                  <div class="font-medium text-zinc-100 truncate">${escapeHtml(s.aluno_nome)}</div>
+                  <span class="text-[10px] px-2 py-0.5 rounded bg-${cor}-500/15 text-${cor}-400 flex-shrink-0">${s.confianca}%</span>
+                </div>
+                <div class="text-xs text-zinc-500 truncate">${escapeHtml(s.aluno_email || 'sem email')}</div>
+                <div class="text-xs text-cyan-400 mt-1">📱 ${escapeHtml(s.whatsapp)} · WhatsApp: "${escapeHtml(s.nome_whatsapp)}"</div>
+                <div class="text-[10px] text-zinc-600 mt-0.5">${s.grupos.map(g => escapeHtml(g)).join(' · ')}</div>
+              </div>
+            </label>`;
+          }).join('');
+        }
+        atualizarContagemContatos();
+        show('modal-contatos');
+      } catch (e) {
+        alert('❌ ' + e.message);
+      } finally {
+        btn.disabled = false; btn.innerHTML = html;
+      }
+    }
+
+    function atualizarContagemContatos() {
+      const n = document.querySelectorAll('.cont-check:checked').length;
+      el('cont-contagem').textContent = `${n} de ${_sugestoesContatos.length} selecionados`;
+    }
+    function marcarTodosContatos(v) {
+      document.querySelectorAll('.cont-check').forEach(c => c.checked = v);
+      atualizarContagemContatos();
+    }
+    function marcarPorConfianca(min) {
+      document.querySelectorAll('.cont-check').forEach(c => {
+        const s = _sugestoesContatos[Number(c.dataset.i)];
+        c.checked = !!s && s.confianca >= min;
+      });
+      atualizarContagemContatos();
+    }
+
+    async function aplicarContatos() {
+      const marcados = Array.from(document.querySelectorAll('.cont-check:checked'))
+        .map(c => _sugestoesContatos[Number(c.dataset.i)])
+        .filter(Boolean)
+        .map(s => ({ aluno_id: s.aluno_id, whatsapp: s.whatsapp }));
+      if (!marcados.length) { alert('Nenhum selecionado.'); return; }
+      if (!confirm(`Gravar telefone em ${marcados.length} alunos?\n\nSó grava em quem está sem WhatsApp — não sobrescreve nada.`)) return;
+      const btn = el('cont-btn-aplicar');
+      const html = btn.innerHTML;
+      try {
+        btn.disabled = true; btn.innerHTML = 'Aplicando...';
+        const r = await api('/api/grupos/aplicar-contatos', { method: 'POST', body: JSON.stringify({ vinculos: marcados }) });
+        alert(`✅ ${r.aplicados} telefones gravados.\n${r.ignorados ? r.ignorados + ' ignorados (já tinham telefone)' : ''}\n\nRode "🔄 Sincronizar" de novo pra vincular esses alunos aos grupos.`);
+        hide('modal-contatos');
+        carregarGrupos();
+      } catch (e) {
+        alert('❌ ' + e.message);
+      } finally {
+        btn.disabled = false; btn.innerHTML = html;
+      }
     }
 
     let _grupoAberto = null;   // { id, nome, membros }

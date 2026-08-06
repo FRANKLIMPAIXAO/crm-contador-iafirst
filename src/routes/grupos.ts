@@ -163,6 +163,137 @@ gruposRouter.post('/sincronizar', async (req, res, next) => {
   }
 });
 
+// POST /api/grupos/descobrir-contatos
+// Lê mensagens dos grupos pra montar telefone ↔ pushName, e sugere match
+// com alunos que ainda não têm WhatsApp. NÃO grava nada — só sugere.
+gruposRouter.post('/descobrir-contatos', async (req, res, next) => {
+  try {
+    const orgId = getOrgId(req);
+    const limitPorGrupo = Math.min(Number(req.body?.limit) || 300, 500);
+
+    const estado = await connectionState().catch(() => 'desconhecido');
+    if (estado !== 'open') {
+      res.status(409).json({
+        ok: false, erro: 'whatsapp_desconectado',
+        mensagem: `WhatsApp não conectado (estado: "${estado}").`,
+      });
+      return;
+    }
+
+    const grupos = await query<{ id: string; nome: string; wa_group_jid: string }>(
+      `SELECT id, nome, wa_group_jid FROM grupos WHERE org_id = $1`,
+      [orgId],
+    );
+    if (!grupos.length) {
+      res.json({ ok: true, sugestoes: [], sem_match: [], mensagem: 'Nenhum grupo sincronizado.' });
+      return;
+    }
+
+    // 1) Varre mensagens e monta telefone → { nome, grupos[] }
+    const contatos = new Map<string, { nome: string; grupos: Set<string> }>();
+    for (const g of grupos) {
+      try {
+        const msgs = await fetchMessages(g.wa_group_jid, limitPorGrupo);
+        for (const m of msgs) {
+          if (m.key?.fromMe) continue;
+          const jid = m.key?.participant;
+          const nome = (m.pushName || '').trim();
+          if (!jid || !nome) continue;
+          const tel = jidToNumero(jid);
+          if (!tel || tel.length < 12) continue;
+          const atual = contatos.get(tel);
+          if (atual) { atual.grupos.add(g.nome); if (!atual.nome && nome) atual.nome = nome; }
+          else contatos.set(tel, { nome, grupos: new Set([g.nome]) });
+        }
+      } catch (e: any) {
+        console.warn(`[descobrir-contatos] ${g.nome}: ${e.message}`);
+      }
+    }
+
+    // 2) Alunos SEM whatsapp
+    const alunos = await query<{ id: string; nome: string; email: string | null }>(
+      `SELECT id, nome, email FROM alunos
+        WHERE org_id = $1 AND (whatsapp IS NULL OR whatsapp = '')`,
+      [orgId],
+    );
+
+    // 3) Match por similaridade de nome
+    const sugestoes: any[] = [];
+    const usados = new Set<string>();
+    for (const a of alunos) {
+      let melhor: { tel: string; nome: string; score: number; grupos: string[] } | null = null;
+      for (const [tel, c] of contatos.entries()) {
+        if (usados.has(tel)) continue;
+        const score = similaridade(a.nome, c.nome);
+        if (score >= 0.62 && (!melhor || score > melhor.score)) {
+          melhor = { tel, nome: c.nome, score, grupos: Array.from(c.grupos) };
+        }
+      }
+      if (melhor) {
+        usados.add(melhor.tel);
+        sugestoes.push({
+          aluno_id: a.id,
+          aluno_nome: a.nome,
+          aluno_email: a.email,
+          whatsapp: melhor.tel,
+          nome_whatsapp: melhor.nome,
+          confianca: Math.round(melhor.score * 100),
+          grupos: melhor.grupos,
+        });
+      }
+    }
+    sugestoes.sort((x, y) => y.confianca - x.confianca);
+
+    // 4) Contatos do WhatsApp que não casaram com ninguém
+    const semMatch = Array.from(contatos.entries())
+      .filter(([tel]) => !usados.has(tel))
+      .map(([tel, c]) => ({ whatsapp: tel, nome_whatsapp: c.nome, grupos: Array.from(c.grupos) }))
+      .sort((a, b) => a.nome_whatsapp.localeCompare(b.nome_whatsapp));
+
+    res.json({
+      ok: true,
+      contatos_encontrados: contatos.size,
+      alunos_sem_whatsapp: alunos.length,
+      sugestoes,
+      sem_match: semMatch,
+    });
+  } catch (err: any) {
+    console.error('[descobrir-contatos] falhou:', err.message);
+    res.status(500).json({ ok: false, erro: 'descoberta_falhou', mensagem: String(err?.message || err).slice(0, 800) });
+  }
+});
+
+// POST /api/grupos/aplicar-contatos — grava os telefones aprovados
+const aplicarSchema = z.object({
+  vinculos: z.array(z.object({
+    aluno_id: z.string().uuid(),
+    whatsapp: z.string().min(10).max(15),
+  })).min(1).max(500),
+});
+
+gruposRouter.post('/aplicar-contatos', async (req, res, next) => {
+  try {
+    const orgId = getOrgId(req);
+    const { vinculos } = aplicarSchema.parse(req.body);
+    let aplicados = 0;
+    const erros: any[] = [];
+    for (const v of vinculos) {
+      try {
+        const upd = await queryOne(
+          `UPDATE alunos SET whatsapp = $1
+            WHERE id = $2 AND org_id = $3 AND (whatsapp IS NULL OR whatsapp = '')
+            RETURNING id`,
+          [v.whatsapp.replace(/\D/g, ''), v.aluno_id, orgId],
+        );
+        if (upd) aplicados++;
+      } catch (e: any) {
+        erros.push({ aluno_id: v.aluno_id, erro: e.message });
+      }
+    }
+    res.json({ ok: true, aplicados, ignorados: vinculos.length - aplicados, erros });
+  } catch (err) { next(err); }
+});
+
 // GET /api/grupos/_leads-de-grupo — lista leads criados por engano de grupos
 gruposRouter.get('/_leads-de-grupo', async (req, res, next) => {
   try {
@@ -354,6 +485,26 @@ Seja direto e prático. Nada de "provavelmente pode ser interessante considerar.
     next(err);
   }
 });
+
+/**
+ * Similaridade 0..1 entre dois nomes.
+ * Compara tokens: quantos pedaços do nome menor aparecem no maior.
+ * "Wendell Naves" vs "Wendell Naves Contabilidade" → alto
+ * "Kelly da Silva" vs "Kelly Rezende" → baixo (só 1 token comum)
+ */
+function similaridade(a: string, b: string): number {
+  const ta = normalizar(a).split(' ').filter((t) => t.length > 2);
+  const tb = normalizar(b).split(' ').filter((t) => t.length > 2);
+  if (!ta.length || !tb.length) return 0;
+  const setB = new Set(tb);
+  let comuns = 0;
+  for (const t of ta) if (setB.has(t)) comuns++;
+  const menor = Math.min(ta.length, tb.length);
+  const base = comuns / menor;
+  // Bônus se o primeiro nome bate exatamente (forte sinal de pessoa)
+  const bonus = ta[0] && tb[0] && ta[0] === tb[0] ? 0.15 : 0;
+  return Math.min(1, base + bonus);
+}
 
 function normalizar(s: string): string {
   return String(s || '')
