@@ -135,7 +135,15 @@ gruposRouter.post('/sincronizar', async (req, res, next) => {
     }
 
     res.json({ ok: true, stats, total_grupos: grupos.length });
-  } catch (err) { next(err); }
+  } catch (err: any) {
+    // Retorna erro estruturado ao invés de crashar no next()
+    console.error('[grupos-sync] falhou:', err.message);
+    res.status(500).json({
+      ok: false,
+      erro: 'sync_falhou',
+      mensagem: String(err?.message || err).slice(0, 1000),
+    });
+  }
 });
 
 // POST /api/grupos/:id/gerar-resumo — Claude analisa membros e resume

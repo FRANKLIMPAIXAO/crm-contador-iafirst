@@ -91,30 +91,57 @@ export type EvolutionGroupParticipant = {
 
 /**
  * Lista TODOS os grupos que o número tá dentro.
- * GET /group/fetchAllGroups/{instance}?getParticipants=false
+ * Tenta várias variações de endpoint (versões diferentes do Evolution).
  */
 export async function fetchAllGroups(instancia?: string): Promise<EvolutionGroup[]> {
   if (!isConfigured()) throw new Error('Evolution não configurada');
   const inst = instancia || config.EVOLUTION_INSTANCE_DEFAULT;
-  const url = `${config.EVOLUTION_API_URL!.replace(/\/+$/, '')}/group/fetchAllGroups/${encodeURIComponent(inst)}?getParticipants=false`;
-  const r = await fetch(url, {
-    headers: { apikey: config.EVOLUTION_API_KEY! },
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!r.ok) {
-    const t = await r.text().catch(() => '');
-    throw new Error(`Evolution fetchAllGroups ${r.status}: ${t.slice(0, 200)}`);
+  const base = config.EVOLUTION_API_URL!.replace(/\/+$/, '');
+  const encInst = encodeURIComponent(inst);
+
+  const tentativas = [
+    { method: 'GET' as const,  url: `${base}/group/fetchAllGroups/${encInst}?getParticipants=false` },
+    { method: 'GET' as const,  url: `${base}/group/fetchAllGroups/${encInst}?getParticipants=true` },
+    { method: 'POST' as const, url: `${base}/group/fetchAllGroups/${encInst}`, body: { getParticipants: false } },
+    { method: 'GET' as const,  url: `${base}/group/findGroupInfos/${encInst}` },
+  ];
+
+  const erros: string[] = [];
+  for (const t of tentativas) {
+    try {
+      const r = await fetch(t.url, {
+        method: t.method,
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: config.EVOLUTION_API_KEY!,
+        },
+        body: t.body ? JSON.stringify(t.body) : undefined,
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!r.ok) {
+        const txt = await r.text().catch(() => '');
+        erros.push(`${t.method} ${t.url.split('/').slice(-2).join('/')} → ${r.status} ${txt.slice(0, 100)}`);
+        continue;
+      }
+      const data = await r.json();
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data?.groups)) return data.groups;
+      if (Array.isArray(data?.data)) return data.data;
+      // Se veio objeto mas sem array conhecido, tenta pegar values
+      if (data && typeof data === 'object') {
+        const vals = Object.values(data).filter((v): v is any[] => Array.isArray(v));
+        if (vals.length && vals[0]!.length > 0 && vals[0]![0]?.id) return vals[0] as EvolutionGroup[];
+      }
+      erros.push(`${t.method} ${t.url.split('/').slice(-2).join('/')} → resposta sem grupos: ${JSON.stringify(data).slice(0, 150)}`);
+    } catch (e: any) {
+      erros.push(`${t.method} → ${e.message}`);
+    }
   }
-  const data = await r.json();
-  // Formato varia entre versões: pode vir { groups: [...] } ou array direto
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.groups)) return data.groups;
-  return [];
+  throw new Error(`Evolution fetchAllGroups falhou em todas variações:\n${erros.join('\n')}`);
 }
 
 /**
- * Lista participantes de UM grupo.
- * GET /group/participants/{instance}?groupJid=xxx
+ * Lista participantes de UM grupo. Tenta variações.
  */
 export async function fetchGroupParticipants(
   groupJid: string,
@@ -122,19 +149,35 @@ export async function fetchGroupParticipants(
 ): Promise<EvolutionGroupParticipant[]> {
   if (!isConfigured()) throw new Error('Evolution não configurada');
   const inst = instancia || config.EVOLUTION_INSTANCE_DEFAULT;
-  const url = `${config.EVOLUTION_API_URL!.replace(/\/+$/, '')}/group/participants/${encodeURIComponent(inst)}?groupJid=${encodeURIComponent(groupJid)}`;
-  const r = await fetch(url, {
-    headers: { apikey: config.EVOLUTION_API_KEY! },
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!r.ok) {
-    const t = await r.text().catch(() => '');
-    throw new Error(`Evolution participants ${r.status}: ${t.slice(0, 200)}`);
+  const base = config.EVOLUTION_API_URL!.replace(/\/+$/, '');
+  const encInst = encodeURIComponent(inst);
+  const encJid = encodeURIComponent(groupJid);
+
+  const tentativas = [
+    { method: 'GET' as const, url: `${base}/group/participants/${encInst}?groupJid=${encJid}` },
+    { method: 'GET' as const, url: `${base}/group/findParticipants/${encInst}?groupJid=${encJid}` },
+    { method: 'POST' as const, url: `${base}/group/participants/${encInst}`, body: { groupJid } },
+  ];
+
+  for (const t of tentativas) {
+    try {
+      const r = await fetch(t.url, {
+        method: t.method,
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: config.EVOLUTION_API_KEY!,
+        },
+        body: t.body ? JSON.stringify(t.body) : undefined,
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!r.ok) continue;
+      const data = await r.json();
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data?.participants)) return data.participants;
+      if (Array.isArray(data?.data)) return data.data;
+    } catch {/* tenta próxima */}
   }
-  const data = await r.json();
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.participants)) return data.participants;
-  return [];
+  return [];  // silencioso — o sync tolera grupos sem membros
 }
 
 /**
