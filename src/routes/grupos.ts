@@ -5,7 +5,10 @@ import { z } from 'zod';
 import { requerAuth } from '../middleware/auth.js';
 import { getOrgId } from '../middleware/tenant.js';
 import { query, queryOne, transaction } from '../db/connection.js';
-import { fetchAllGroups, fetchGroupParticipants, jidToNumero, connectionState } from '../services/evolution.js';
+import {
+  fetchAllGroups, fetchGroupParticipants, jidToNumero, connectionState,
+  fetchMessages, extrairTextoMensagem, sendText,
+} from '../services/evolution.js';
 import { getClient as getAnthropic } from '../services/anthropic.js';
 
 export const gruposRouter: Router = Router();
@@ -192,6 +195,97 @@ gruposRouter.delete('/_leads-de-grupo', async (req, res, next) => {
     );
     res.json({ ok: true, deletados: del.length, leads: del });
   } catch (err) { next(err); }
+});
+
+// GET /api/grupos/:id/mensagens — últimas mensagens do grupo
+gruposRouter.get('/:id/mensagens', async (req, res, next) => {
+  try {
+    const orgId = getOrgId(req);
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const grupo = await queryOne<{ wa_group_jid: string; nome: string }>(
+      `SELECT wa_group_jid, nome FROM grupos WHERE id = $1 AND org_id = $2`,
+      [req.params.id, orgId],
+    );
+    if (!grupo) { res.status(404).json({ erro: 'grupo não encontrado' }); return; }
+
+    const estado = await connectionState().catch(() => 'desconhecido');
+    if (estado !== 'open') {
+      res.status(409).json({
+        ok: false, erro: 'whatsapp_desconectado',
+        mensagem: `WhatsApp não conectado (estado: "${estado}"). Reconecte no painel do Evolution.`,
+      });
+      return;
+    }
+
+    const raw = await fetchMessages(grupo.wa_group_jid, limit);
+    const mensagens = raw.map((m) => {
+      const ts = Number(m.messageTimestamp) || 0;
+      return {
+        id: m.key?.id || null,
+        de_mim: !!m.key?.fromMe,
+        autor: m.pushName || (m.key?.participant ? jidToNumero(m.key.participant) : null),
+        autor_numero: m.key?.participant ? jidToNumero(m.key.participant) : null,
+        texto: extrairTextoMensagem(m),
+        em: ts ? new Date(ts * 1000).toISOString() : null,
+      };
+    })
+    .filter((m) => m.texto)
+    .sort((a, b) => (a.em || '').localeCompare(b.em || ''));
+
+    res.json({ grupo: grupo.nome, total: mensagens.length, mensagens });
+  } catch (err: any) {
+    console.error('[grupos-mensagens] falhou:', err.message);
+    res.status(500).json({ ok: false, erro: 'mensagens_falhou', mensagem: String(err?.message || err).slice(0, 800) });
+  }
+});
+
+// POST /api/grupos/:id/enviar — envia mensagem NO GRUPO
+// AÇÃO DE ALTO IMPACTO: atinge todos os membros. Exige confirmar_membros
+// igual ao total conhecido, pra evitar disparo acidental.
+const enviarSchema = z.object({
+  texto: z.string().min(1).max(4000),
+  confirmar_membros: z.number().int().nonnegative(),
+});
+
+gruposRouter.post('/:id/enviar', async (req, res, next) => {
+  try {
+    const orgId = getOrgId(req);
+    const input = enviarSchema.parse(req.body);
+    const grupo = await queryOne<{ wa_group_jid: string; nome: string; membros_count: number }>(
+      `SELECT wa_group_jid, nome, membros_count FROM grupos WHERE id = $1 AND org_id = $2`,
+      [req.params.id, orgId],
+    );
+    if (!grupo) { res.status(404).json({ erro: 'grupo não encontrado' }); return; }
+
+    // Trava anti-disparo-acidental: o cliente precisa ecoar o nº de membros
+    if (input.confirmar_membros !== grupo.membros_count) {
+      res.status(409).json({
+        ok: false, erro: 'confirmacao_invalida',
+        mensagem: `Confirmação não bate. O grupo "${grupo.nome}" tem ${grupo.membros_count} membros, ` +
+                  `mas a requisição enviou ${input.confirmar_membros}. Recarregue a página e tente de novo.`,
+      });
+      return;
+    }
+
+    const estado = await connectionState().catch(() => 'desconhecido');
+    if (estado !== 'open') {
+      res.status(409).json({
+        ok: false, erro: 'whatsapp_desconectado',
+        mensagem: `WhatsApp não conectado (estado: "${estado}").`,
+      });
+      return;
+    }
+
+    const r = await sendText({ numero: grupo.wa_group_jid, texto: input.texto });
+    if (!r.ok) {
+      res.status(502).json({ ok: false, erro: 'envio_falhou', mensagem: r.erro || 'Evolution recusou o envio' });
+      return;
+    }
+
+    res.json({ ok: true, wa_message_id: r.wa_message_id, grupo: grupo.nome, membros: grupo.membros_count });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, erro: 'envio_falhou', mensagem: String(err?.message || err).slice(0, 800) });
+  }
 });
 
 // POST /api/grupos/:id/gerar-resumo — Claude analisa membros e resume

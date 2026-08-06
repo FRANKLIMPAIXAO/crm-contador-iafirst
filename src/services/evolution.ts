@@ -35,9 +35,10 @@ export async function sendText({
   // encodeURIComponent pra suportar nomes com espaço/caracteres especiais
   const url = `${config.EVOLUTION_API_URL!.replace(/\/+$/, '')}/message/sendText/${encodeURIComponent(inst)}`;
 
-  // Evolution aceita JID ou só número (sem @s.whatsapp.net)
-  // Padroniza: tira sufixo se vier
-  const numeroLimpo = numero.replace(/@s\.whatsapp\.net$/, '').replace(/@g\.us$/, '');
+  // Individual: Evolution aceita só o número (sem @s.whatsapp.net).
+  // GRUPO: precisa manter o JID completo com @g.us, senão não entrega.
+  const ehGrupo = numero.endsWith('@g.us');
+  const numeroLimpo = ehGrupo ? numero : numero.replace(/@s\.whatsapp\.net$/, '');
 
   try {
     const r = await fetch(url, {
@@ -195,6 +196,82 @@ export async function fetchGroupParticipants(
     } catch {/* tenta próxima */}
   }
   return [];  // silencioso — o sync tolera grupos sem membros
+}
+
+export type EvolutionMessage = {
+  key?: { id?: string; remoteJid?: string; fromMe?: boolean; participant?: string };
+  pushName?: string;
+  message?: any;
+  messageTimestamp?: number | string;
+  messageType?: string;
+};
+
+/**
+ * Busca mensagens de um chat/grupo. Tenta variações de endpoint.
+ */
+export async function fetchMessages(
+  remoteJid: string,
+  limit = 50,
+  instancia?: string,
+): Promise<EvolutionMessage[]> {
+  if (!isConfigured()) throw new Error('Evolution não configurada');
+  const inst = instancia || config.EVOLUTION_INSTANCE_DEFAULT;
+  const base = config.EVOLUTION_API_URL!.replace(/\/+$/, '');
+  const encInst = encodeURIComponent(inst);
+
+  const tentativas: Array<{ method: 'POST' | 'GET'; url: string; body?: any }> = [
+    { method: 'POST', url: `${base}/chat/findMessages/${encInst}`, body: { where: { key: { remoteJid } }, limit } },
+    { method: 'POST', url: `${base}/chat/findMessages/${encInst}`, body: { where: { remoteJid }, limit } },
+    { method: 'GET',  url: `${base}/chat/findMessages/${encInst}?remoteJid=${encodeURIComponent(remoteJid)}&limit=${limit}` },
+  ];
+
+  const erros: string[] = [];
+  for (const t of tentativas) {
+    try {
+      const r = await fetch(t.url, {
+        method: t.method,
+        headers: { 'Content-Type': 'application/json', apikey: config.EVOLUTION_API_KEY! },
+        body: t.body ? JSON.stringify(t.body) : undefined,
+        signal: AbortSignal.timeout(25_000),
+      });
+      if (!r.ok) {
+        const txt = await r.text().catch(() => '');
+        erros.push(`${t.method} → ${r.status} ${txt.slice(0, 120)}`);
+        continue;
+      }
+      const data = await r.json();
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data?.messages)) return data.messages;
+      if (Array.isArray(data?.messages?.records)) return data.messages.records;
+      if (Array.isArray(data?.records)) return data.records;
+      if (Array.isArray(data?.data)) return data.data;
+      erros.push(`${t.method} → formato inesperado: ${JSON.stringify(data).slice(0, 150)}`);
+    } catch (e: any) {
+      erros.push(`${t.method} → ${e.message}`);
+    }
+  }
+  throw new Error(`Evolution findMessages falhou:\n${erros.join('\n')}`);
+}
+
+/**
+ * Extrai o texto de uma mensagem Evolution (formatos variados).
+ */
+export function extrairTextoMensagem(m: EvolutionMessage): string {
+  const msg = m?.message;
+  if (!msg) return '';
+  return (
+    msg.conversation ||
+    msg.extendedTextMessage?.text ||
+    msg.imageMessage?.caption ||
+    msg.videoMessage?.caption ||
+    msg.documentMessage?.caption ||
+    (msg.audioMessage ? '[áudio]' : '') ||
+    (msg.stickerMessage ? '[figurinha]' : '') ||
+    (msg.imageMessage ? '[imagem]' : '') ||
+    (msg.videoMessage ? '[vídeo]' : '') ||
+    (msg.documentMessage ? '[documento]' : '') ||
+    ''
+  );
 }
 
 /**
