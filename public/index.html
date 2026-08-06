@@ -218,7 +218,7 @@
           <h2 class="text-lg font-semibold text-zinc-200">📚 Grupos WhatsApp</h2>
           <p class="text-xs text-zinc-500 mt-1">Sincroniza grupos do WhatsApp conectado e vincula membros aos alunos cadastrados.</p>
         </div>
-        <button onclick="sincronizarGrupos()" class="px-4 py-2 bg-lime-500 text-black text-sm font-semibold rounded-lg hover:bg-lime-400">🔄 Sincronizar do WhatsApp</button>
+        <button id="btn-sync-grupos" onclick="sincronizarGrupos()" class="px-4 py-2 bg-lime-500 text-black text-sm font-semibold rounded-lg hover:bg-lime-400">🔄 Sincronizar do WhatsApp</button>
       </div>
       <div class="flex-1 overflow-y-auto px-6 py-4">
         <div id="grid-grupos" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
@@ -1119,13 +1119,11 @@
 
     async function sincronizarGrupos() {
       if (!confirm('Vai puxar todos os grupos que o WhatsApp conectado tá dentro + vincular membros aos alunos existentes.\n\nContinuar?')) return;
+      const btn = el('btn-sync-grupos');
+      const btnHtml = btn ? btn.innerHTML : '';
       try {
-        const btnHtml = event.target.innerHTML;
-        event.target.disabled = true;
-        event.target.innerHTML = '⏳ Sincronizando...';
+        if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Sincronizando...'; }
         const r = await api('/api/grupos/sincronizar', { method: 'POST', body: '{}' });
-        event.target.disabled = false;
-        event.target.innerHTML = btnHtml;
         alert(`✅ Sincronização concluída!\n\n` +
               `Grupos novos: ${r.stats.grupos_novos}\n` +
               `Grupos atualizados: ${r.stats.grupos_atualizados}\n` +
@@ -1133,7 +1131,11 @@
               `Membros ignorados (sem telefone no CRM): ${r.stats.membros_ignorados}\n\n` +
               `Total de grupos: ${r.total_grupos}`);
         carregarGrupos();
-      } catch (e) { alert('❌ ' + e.message); }
+      } catch (e) {
+        alert('❌ ' + e.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = btnHtml; }
+      }
     }
 
     async function gerarResumoGrupo(id, nome) {
