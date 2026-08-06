@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requerAuth } from '../middleware/auth.js';
-import { getOrgId } from '../middleware/tenant.js';
+import { getOrgId, getUserId } from '../middleware/tenant.js';
 import { query, queryOne } from '../db/connection.js';
 
 export const leadsRouter: Router = Router();
@@ -126,6 +126,42 @@ leadsRouter.patch('/:id', async (req, res, next) => {
       return;
     }
     res.json({ lead });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /:id/encerrar-conversa
+// Marca um corte no histórico: a triagem e o bot passam a ignorar tudo que
+// veio antes. Resolve o caso do lead que some por semanas e volta com "oi" —
+// sem isso o bot responde a conversa antiga como se fosse continuação.
+leadsRouter.post('/:id/encerrar-conversa', async (req, res, next) => {
+  try {
+    const orgId = getOrgId(req);
+    const { id } = req.params;
+
+    const lead = await queryOne<{ id: string; nome: string | null }>(
+      `UPDATE leads SET conversa_reiniciada_em = NOW()
+        WHERE id = $1 AND org_id = $2
+        RETURNING id, nome`,
+      [id, orgId],
+    );
+    if (!lead) {
+      res.status(404).json({ erro: 'lead não encontrado' });
+      return;
+    }
+
+    await queryOne(
+      `INSERT INTO activities (org_id, lead_id, tipo, conteudo, autor)
+       VALUES ($1, $2, 'conversa_encerrada', $3, $4)`,
+      [orgId, id, JSON.stringify({ em: new Date().toISOString() }), getUserId(req)],
+    );
+
+    res.json({
+      ok: true,
+      lead,
+      mensagem: 'Conversa encerrada. A próxima mensagem do lead será tratada como conversa nova.',
+    });
   } catch (err) {
     next(err);
   }

@@ -401,6 +401,9 @@
           <button id="btn-usar-sugestao" class="bg-zinc-800 hover:bg-zinc-700 text-lime-400 text-xs px-3 py-1 rounded border border-zinc-700 hidden">
             ✨ Usar sugestão IA
           </button>
+          <button onclick="encerrarConversa()" title="A próxima mensagem do lead será tratada como conversa nova — o bot não vai mais responder o assunto antigo" class="bg-zinc-800 hover:bg-red-500/20 text-zinc-400 hover:text-red-300 text-xs px-3 py-1 rounded border border-zinc-700">
+            🔚 Encerrar conversa
+          </button>
           <div id="env-status" class="text-xs text-zinc-500 ml-auto"></div>
         </div>
         <form id="form-enviar" class="flex gap-2">
@@ -609,6 +612,22 @@
     el('btn-usar-sugestao').addEventListener('click', () => {
       if (_ultimaSugestao) { el('resp-corpo').value = _ultimaSugestao; el('resp-corpo').focus(); }
     });
+
+    async function encerrarConversa() {
+      if (!_drawerLeadId) return;
+      const nome = el('drawer-nome').textContent || 'este lead';
+      if (!confirm(
+        `Encerrar a conversa com "${nome}"?\n\n` +
+        `A próxima mensagem que ele mandar será tratada como conversa NOVA — ` +
+        `o bot não vai mais responder sobre o assunto antigo.\n\n` +
+        `O histórico continua salvo, só deixa de entrar no contexto da IA.`
+      )) return;
+      try {
+        const r = await api('/api/leads/' + _drawerLeadId + '/encerrar-conversa', { method: 'POST', body: '{}' });
+        el('env-status').textContent = '🔚 conversa encerrada';
+        alert('✅ ' + r.mensagem);
+      } catch (e) { alert('❌ ' + e.message); }
+    }
 
     el('resp-corpo').addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el('form-enviar').requestSubmit(); }

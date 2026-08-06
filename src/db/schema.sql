@@ -444,6 +444,9 @@ CREATE TABLE IF NOT EXISTS alunos_grupos (
   entrou_em     timestamptz NOT NULL DEFAULT now(),
   UNIQUE (aluno_id, grupo_id)
 );
+-- Marco de reinício de conversa: triagem/bot ignoram tudo antes desta data
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS conversa_reiniciada_em timestamptz;
+
 CREATE INDEX IF NOT EXISTS idx_alunos_grupos_org ON alunos_grupos(org_id);
 CREATE INDEX IF NOT EXISTS idx_alunos_grupos_grupo ON alunos_grupos(grupo_id);
 CREATE INDEX IF NOT EXISTS idx_alunos_grupos_aluno ON alunos_grupos(aluno_id);

@@ -102,9 +102,26 @@ ${textoNovo}`;
 }
 
 export async function triarLead(leadId: string, orgId: string, textoNovo: string): Promise<TriagemResultado | null> {
-  const historico = await query<{ direcao: 'in' | 'out'; corpo: string }>(
-    `SELECT direcao, corpo FROM messages WHERE lead_id = $1 AND org_id = $2 ORDER BY ts DESC LIMIT 10`,
+  // Corte de contexto: histórico velho não deve entrar no prompt, senão o bot
+  // responde uma conversa de semanas atrás como se fosse agora ("tudo pronto
+  // pra nossa call?" 40 dias depois). Duas travas:
+  //   1. conversa_reiniciada_em — marco manual, setado pelo botão "Encerrar conversa"
+  //   2. CONVERSA_CONTEXTO_DIAS — janela automática (default 7 dias)
+  const janelaDias = Number(process.env.CONVERSA_CONTEXTO_DIAS || 7);
+  const lead = await queryOne<{ conversa_reiniciada_em: Date | null }>(
+    `SELECT conversa_reiniciada_em FROM leads WHERE id = $1 AND org_id = $2`,
     [leadId, orgId],
+  );
+
+  const corteJanela = new Date(Date.now() - janelaDias * 24 * 60 * 60 * 1000);
+  const corteManual = lead?.conversa_reiniciada_em ? new Date(lead.conversa_reiniciada_em) : null;
+  const corte = corteManual && corteManual > corteJanela ? corteManual : corteJanela;
+
+  const historico = await query<{ direcao: 'in' | 'out'; corpo: string }>(
+    `SELECT direcao, corpo FROM messages
+      WHERE lead_id = $1 AND org_id = $2 AND ts >= $3
+      ORDER BY ts DESC LIMIT 10`,
+    [leadId, orgId, corte],
   );
 
   const resultado = await triar({
